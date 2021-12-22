@@ -1,0 +1,54 @@
+body{
+  font-family: arial, helvetica, sans-serif;
+  text-align: center;
+}
+#holder { border: 10px dashed #ccc; width: 140px; height: 100px; padding: 100px 80px 40px 80px; margin: 20px auto; color: #aaa; }
+#holder.hover { border: 10px dashed #333; }
+
+p{
+  width: 60%;
+  margin: 30px auto ;
+}
+
+#output{
+  width: 1000px;
+  height: 1000px;
+  margin: 30px auto ;
+  text-align: left;
+  padding: 30px;
+  background: #eee;
+}
+
+#svg{
+  width: 1000px;
+  min-height: 1000px;
+}
+
+#status{
+  margin: 30px auto ;
+  text-align: center;
+  padding: 30px;
+}
+ .processed{
+   border: 5px solid #ccc;
+ }
+
+ .finished{
+   color: green;
+ }
+
+ .loading{
+   background-image: url(loading.gif);
+   background-repeat: no-repeat;
+   background-position: center left;
+   padding: 0 0 0 30px;
+ }
+
+#copyTextButton{
+  border: 1px solid #666;
+    padding: 10px 20px;
+    margin: 0 10px;
+    color: #666;
+    cursor: pointer;
+
+}
