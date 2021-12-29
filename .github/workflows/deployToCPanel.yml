@@ -21,6 +21,7 @@ jobs:
     steps:
     - name: Adding Known Hosts
       run: |
+        mkdir -p ~/.ssh/
         touch ~/.ssh/known_hosts
         ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
     - name: Install SSH key
