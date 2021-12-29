@@ -29,6 +29,7 @@ jobs:
       with:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
+        name: SVGMotionBrush
         # config: ${{ secrets.CONFIG }} # ssh_config; optional
     - name: Show contents of SSH folder
       run: ls ~/.ssh
