@@ -15,16 +15,18 @@ on:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  FTP-Deploy-Action:
-    name: FTP-Deploy-Action
+  Install-SSH-Key:
+    name: Install-SSH-Key
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2.1.0
+    - name: Adding Known Hosts
+      run: ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+    - name: Install SSH key
+      uses: shimataro/ssh-key-action@v2
       with:
-        fetch-depth: 2
-    - name: FTP-Deploy-Action
-      uses: SamKirkland/FTP-Deploy-Action@3.1.1
-      with:
-        ftp-server: ${{ secrets.FTP_SERVER }}
-        ftp-username: ${{ secrets.FTP_USERNAME }}
-        ftp-password: ${{ secrets.FTP_PASSWORD }}
+        key: ${{ secrets.SSH_KEY }}
+        # known_hosts: ${{ secrets.KNOWN_HOSTS }}
+        # config: ${{ secrets.CONFIG }} # ssh_config; optional
+    - name: rsync over ssh
+      run: rsync -avz ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/public_html/SVGMotionBrush
+      
