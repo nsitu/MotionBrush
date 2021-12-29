@@ -31,6 +31,11 @@ jobs:
         known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
         name: SVGMotionBrush
         # config: ${{ secrets.CONFIG }} # ssh_config; optional
+        config: |
+          Host CPanel
+            HostName ${{ secrets.SSH_HOST }}
+            User ${{ secrets.SSH_USER }}
+            IdentityFile ~/.ssh/SVGMotionBrush
     - name: Show contents of SSH folder
       run: ls ~/.ssh
     - name: Verify Known Hosts
