@@ -30,6 +30,8 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
         # config: ${{ secrets.CONFIG }} # ssh_config; optional
+    - name: Show contents of SSH folder
+      run: ls ~/.ssh
     - name: Verify Known Hosts
       run: cat ~/.ssh/known_hosts
     - name: rsync over SSH
