@@ -25,7 +25,7 @@ jobs:
       uses: shimataro/ssh-key-action@v2
       with:
         key: ${{ secrets.SSH_KEY }}
-        # known_hosts: ${{ secrets.KNOWN_HOSTS }}
+        known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
         # config: ${{ secrets.CONFIG }} # ssh_config; optional
     - name: rsync over ssh
       run: rsync -avz ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/public_html/SVGMotionBrush
