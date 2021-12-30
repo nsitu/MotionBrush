@@ -312,8 +312,8 @@ function findCircle(x1, y1, x2, y2, x3, y3)
 	// r is the radius
 	var r = Math.sqrt(sqr_of_r);
 
-	document.write("Centre = (" + h + ", "+ k +")" + "<br>");
-	document.write( "Radius = " + r.toFixed(5));
+	console.log("Centre = (" + h + ", "+ k +")" + "<br>");
+	console.log( "Radius = " + r.toFixed(5));
 }
 
 var x1 = 1, y1 = 1;
