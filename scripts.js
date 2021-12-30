@@ -1,9 +1,13 @@
 
-var textureImg = new Image();
+let textureImg = new Image();
 textureImg.crossOrigin = 'anonymous';
 textureImg.src = 'sloth-wide.jpg';
-var textureCanvas = document.getElementById('canvas');
-var textureContext = textureCanvas.getContext('2d');
+
+let textureCanvas = document.createElement('canvas');
+textureCanvas.id = "canvas";
+document.body.appendChild(textureCanvas);
+
+let textureContext = textureCanvas.getContext('2d');
 textureImg.onload = function() {
     textureCanvas.width = textureImg.width;
     textureCanvas.height = textureImg.height;
