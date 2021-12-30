@@ -38,11 +38,8 @@ jobs:
     - name: Add CPanel Server to Known Hosts
       run: ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
       
-    - name: get oriented
-      run: |
-        cd SVGMotionBrush
-        ls
-        
+  
+  
         
       
     - name: rsync over SSH
