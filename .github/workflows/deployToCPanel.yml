@@ -40,11 +40,11 @@ jobs:
       
     - name: get oriented
       run: |
-        cd ~
+        cd SVGMotionBrush
         ls
         
         
       
     - name: rsync over SSH
-      run: rsync -avz ./SVGMotionBrush/ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/public_html/SVGMotionBrush/
+      run: rsync -avz ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/public_html/SVGMotionBrush/
       
