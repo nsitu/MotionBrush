@@ -28,6 +28,9 @@ jobs:
     name: Deploy to CPanel via SSH and rsync
     runs-on: ubuntu-latest
     steps:
+    - uses: actions/checkout@v2.1.0
+      with:
+        fetch-depth: 2
     - name: Install SSH key
       uses: shimataro/ssh-key-action@v2
       with:
