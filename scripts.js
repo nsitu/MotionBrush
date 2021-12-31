@@ -1,4 +1,5 @@
-
+// TODO if you have a really wide format image you could split it into an array of tiles
+// perhaps you can use a Panorama class to do this.
 let textureImg = new Image();
 textureImg.crossOrigin = 'anonymous';
 textureImg.src = 'sloth-wide.jpg';
@@ -11,10 +12,15 @@ let textureContext = textureCanvas.getContext('2d');
 textureImg.onload = function() {
     textureCanvas.width = textureImg.width;
     textureCanvas.height = textureImg.height;
+    // paint an image to canvas so that we can address individual pixels.
+    // TODO: investigate how this works for really large images
+    // i.e. we may have to divide a large panorama into many individual pieces in advance.
     textureContext.drawImage(textureImg, 0, 0);
     textureImg.style.display = 'none';
 }; 
 
+
+// get the color of a pixel at a given location on the canvas.
 function pick(x,y) {
   let pixel = textureContext.getImageData(x, y, 1, 1);
   let data = pixel.data;
@@ -48,133 +54,125 @@ const status = document.getElementById('status');
       // FileReader asynchronously reads files (or raw data buffers) using File or Blob objects
       reader = new FileReader();
       reader.onload = function(event) {
-
-            //console.log(event);
-
-        var s = Snap("#svg");
-        var graphic = Snap.parse( event.target.result );
-        var path = graphic.select("path");
-
-        // NOTE: .selectAll() gives an array of results instead of the first result
-        // var paths = graphic.selectAll("path");
-
-        // NOTE: it's possible to run transforms on elements
-        // http://snapsvg.io/docs/#Element.transform
-        // However such transforms do not seem to affect the actual locations of points. 
-        // as such they do not make a difference for 
-
-        // Get the bounding box of the SVG;
-        // We use this later to resize the output canvas.
-          let bbox = Snap.path.getBBox(path);
-          let theWidth = bbox.width;
-          let theHeight = bbox.height;
-
-            // I tried scaling down the SVG by halving the bounding box 
-            // but it did not seem to affect subsequent Cubics
-            // A viewbox has 4 params:  min-x, min-y, width and height
-            // let viewBox = bbox.x+' '+bbox.y+' '+(bbox.width/2)+' '+ (bbox.height/2);
-            // console.log(viewBox);
-            // path.attr({  viewBox: viewBox })
-           
-            // http://snapsvg.io/docs/#Element.getTotalLength
-            // Get the length of the path in pixels 
-            let pathLength = path.getTotalLength();
-
-            // console.log(pathLength);
-            // can you loop through the points along the path? 
-
-            // Keep track of the slope of the curve from point to point.
-            let slope;
-            
-            // Given that we know the total length of the path.
-            // Given that any point on the path can be found by its distance from the start
-            // We can traverse the path by incrementing percentage-wise along its length
-            // - to divide a path into  100 points,  increment by 1 percent
-            // - to divide a path into  1000 points,  increment by 0.1 percent
-
-            for (i = 1; i <100; i+=0.1){
-                
-                // http://snapsvg.io/docs/#Element.getPointAtLength
-                // Find a point at i percent along the path
-                // Get position as pixels from start of path
-                var position = i * pathLength / 100;
-                let p1 = path.getPointAtLength(position);
-
-                // NOTE: getPointAtLength returns an object like this:
-                // { x:number, y:number, alpha:number } 
-                // "alpha" here is the "angle of derivative". 
-                // I take this to mean the "slope of the tangent"
-
-                // Tangent Line: a straight line that "just touches" a curve at a given point
-                // Normal Line: a straight line perpendicular to a tangent line at a given point on a curve
-
-                // Find the change in tangent slope between the this point and the previous point.
-                var deltaSlope = Math.abs(p1.alpha - slope);
-                // Update the "previous slope" in preparation for the next iteration
-                slope = p1.alpha;
-
-                // TODO: Perhaps we could keep a history of recent slopes here
-                // This could allow us access to a rolling average 
-                // This could be useful to smooth out dramatic curves.
-                // slopes.push(p1.alpha);
-                // if (slopes.length == 5) { slopes.shift(); } 
-                // console.log(slopes);
-                // var avgSlope = slopes.reduce((a,b) => (a+b)) / slopes.length;
-
-                // Hmm: I think this line helps to deal with sharp corners?
-                // I need to study this more in depth.
-                if (deltaSlope > 300) deltaSlope = 360 - deltaSlope;
-                // if (deltaSlope >  180 && p1.alpha > slope) { deltaSlope = Math.abs(p1.alpha - 360) - slope; } 
-                // else{ deltaSlope = Math.abs(slope - 360) - p1.alpha;  }
-                //console.log(deltaSlope );
-
-                // http://snapsvg.io/docs/#Paper.circle
-                // mark the point with a black circle  (radius 4)
-                s.circle(p1.x, p1.y, 4).attr({ fill:"#000000" });  
-
-                // TODO: to simplify the below loop make a new path for the normal line 
-                // and traverse it with getPointAtLength as above.
-                for(j = 10; j < 100; j+=5){
-
-                    var tX = (textureImg.width * i /100);
-                    var tY = (textureImg.height * j /100);
-                    
-                    var theColor = pick(tX,tY);
-                   // console.log(theColor);
-                    var ln =  getPoint(p1.x, p1.y, p1.alpha + 90, j + (deltaSlope*2) );
-                    
-
-                    
-                    // TODO: fix Error: <circle> attribute cx: Expected length, "NaN".
-                        try{
-                            s.circle(ln.x, ln.y, 2).attr({ fill: theColor });  
-                        }
-                        catch{
-                            console.log(ln);
-
-                        }
-                    
-
-                    var rn =  getPoint(p1.x, p1.y, p1.alpha + 90, - j -(deltaSlope*2) );
-                    s.circle(rn.x, rn.y, 2).attr({ fill: theColor });  
-
-                    // s.line(p1.x, p1.y, p2.x, p2.y);                    
-                    
-                }
-
-
-            }
-
-            // renderPath( Snap.path.toCubic(path) );
-            //    console.log(cubic);
-            //    path.attr({stroke: "#ffcc00", fill:"transparent", transform: "s.8" , strokeWidth: 20 });           
-            //     path.attr({stroke: "#ffcc00", fill:"transparent", strokeWidth: 20 });           
-            //var g = s.group().append( path );
+        let graphic = Snap.parse( event.target.result );
+        let path = graphic.select("path");
+        // NOTE: you can also select an array of results instead of just the first: 
+        // ie. let paths = graphic.selectAll("path");
+        traversePath( path );
       };
       reader.readAsText(file);
       return false;
   };
 
+  // for every point along the path, draw circles to an SVG.
+  function traversePath( path ) {
+    
+    // this is a blank SVG onto which we will draw coloured circles
+    let s = Snap("#svg");
+
+    // Get the bounding box of the SVG;
+    // We use this later to resize the output canvas.
+    let bbox = Snap.path.getBBox(path);
+    let theWidth = bbox.width;
+    let theHeight = bbox.height;
+    
+    // NOTE: it's possible to run transforms on Snap elements
+    // http://snapsvg.io/docs/#Element.transform
+    // However such transforms do not seem to affect the actual locations of points. 
+    // as such they do not make a difference for getPointAtLength() 
+
+    // I tried scaling down the SVG by halving the bounding box 
+    // but it did not seem to affect subsequent Cubics
+    // A viewbox has 4 params:  min-x, min-y, width and height
+    // let viewBox = bbox.x+' '+bbox.y+' '+(bbox.width/2)+' '+ (bbox.height/2);
+    // console.log(viewBox);
+    // path.attr({  viewBox: viewBox })
+         
+    // http://snapsvg.io/docs/#Element.getTotalLength
+    // Get the length of the path in pixels 
+    let pathLength = path.getTotalLength();
+
+    // console.log(pathLength);
+    // can you loop through the points along the path? 
+
+    // Keep track of the slope of the curve from point to point.
+    let slope;
+    
+    // Given that we know the total length of the path.
+    // Given that any point on the path can be found by its distance from the start
+    // We can traverse the path by incrementing percentage-wise along its length
+    // - to divide a path into  100 points,  increment by 1 percent
+    // - to divide a path into  1000 points,  increment by 0.1 percent
+
+    for (i = 1; i <100; i+=0.1){
+        
+        // http://snapsvg.io/docs/#Element.getPointAtLength
+        // Find a point at i percent along the path
+        // Get position as pixels from start of path
+        var position = i * pathLength / 100;
+        let p1 = path.getPointAtLength(position);
+
+        // NOTE: getPointAtLength returns an object like this:
+        // { x:number, y:number, alpha:number } 
+        // "alpha" here is the "angle of derivative". 
+        // I take this to mean the "slope of the tangent"
+
+        // Definitions:
+        // Tangent Line: a straight line that "just touches" a curve at a given point
+        // Normal Line: a straight line perpendicular to a tangent line at a given point on a curve
+
+        // Find the change in tangent slope between the this point and the previous point.
+        var deltaSlope = Math.abs(p1.alpha - slope);
+        // Update the "previous slope" in preparation for the next iteration
+        slope = p1.alpha;
+
+        // TODO: Perhaps we could keep a history of recent slopes here
+        // This could allow us access to a rolling average 
+        // This could be useful to smooth out dramatic curves.
+        // slopes.push(p1.alpha);
+        // if (slopes.length == 5) { slopes.shift(); } 
+        // console.log(slopes);
+        // var avgSlope = slopes.reduce((a,b) => (a+b)) / slopes.length;
+
+        // Hmm: I think this line of code helps to deal with sharp corners
+        // I need to test / study this more in depth.
+        if (deltaSlope > 300) deltaSlope = 360 - deltaSlope;
+        // if (deltaSlope >  180 && p1.alpha > slope) { deltaSlope = Math.abs(p1.alpha - 360) - slope; } 
+        // else{ deltaSlope = Math.abs(slope - 360) - p1.alpha;  }
+        //console.log(deltaSlope );
+
+        // http://snapsvg.io/docs/#Paper.circle
+        // mark the point with a black circle  (radius 4)
+        s.circle(p1.x, p1.y, 4).attr({ fill:"#000000" });  
+
+        // TODO: to simplify the below loop make a new path for the normal line 
+        // and traverse it with getPointAtLength as above.
+        for(j = 10; j < 100; j+=5){
+            let tX = (textureImg.width * i /100);
+            let tY = (textureImg.height * j /100);
+            let theColor = pick(tX,tY);
+            let ln =  getPoint(p1.x, p1.y, p1.alpha + 90, j + (deltaSlope*2) );
+        
+            // TODO: fix Error: <circle> attribute cx: Expected length, "NaN".
+            try{
+                s.circle(ln.x, ln.y, 2).attr({ fill: theColor });  
+            }
+            catch{
+                console.log(ln);
+            } 
+            var rn =  getPoint(p1.x, p1.y, p1.alpha + 90, - j -(deltaSlope*2) );
+            s.circle(rn.x, rn.y, 2).attr({ fill: theColor }); 
+        }
+    }
+
+    // renderPath( Snap.path.toCubic(path) );
+    //    console.log(cubic);
+    //    path.attr({stroke: "#ffcc00", fill:"transparent", transform: "s.8" , strokeWidth: 20 });           
+    //     path.attr({stroke: "#ffcc00", fill:"transparent", strokeWidth: 20 });           
+    //var g = s.group().append( path );
+
+  }
+ 
 
   // given a starting point {x,y} an angle 0..360 and a pixel distance 0..10000, return a second point. 
   function getPoint(x, y, angle, distance ){
@@ -188,7 +186,7 @@ const status = document.getElementById('status');
   // takes a cubic path as per http://snapsvg.io/docs/#Snap.path.toCubic
   // renders the path to HTML5 Canvas
   function renderPath(cubic){
-    var c = document.getElementById("myCanvas");
+    var c = document.getElementById("canvas");
     c.style.width = "300px";
     var ctx = c.getContext("2d");
     ctx.lineWidth = 15;
@@ -254,7 +252,7 @@ const status = document.getElementById('status');
 
 
   function saveCanvasImage(){
-    var myCanvas = document.getElementById('myCanvas');
+    var myCanvas = document.getElementById('canvas');
     var link = document.getElementById('imageLink');
     link.setAttribute('download', 'MintyPaper.png');
     link.setAttribute('href', myCanvas.toDataURL("image/png").replace("image/png", "image/octet-stream"));
