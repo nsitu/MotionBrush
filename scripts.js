@@ -11,8 +11,9 @@ textureImg.onload = function() {
 // it should have at minimum the same dimensions as our input SVG
 let outputCanvas = document.createElement('canvas');
 outputCanvas.id = "outputCanvas";
-document.body.appendChild(outputCanvas);
-// TODO: set dimensions to match SVG
+document.body.appendChild(outputCanvas); 
+let canvasContext = outputCanvas.getContext("2d");
+
  
 
 const dragAndDrop = document.getElementById('dragAndDrop'); 
@@ -68,8 +69,9 @@ dragAndDrop.ondrop = function(e) {
     // Get the bounding box of the SVG; 
     // Resize the output canvas to match provided SVG
     let bbox = Snap.path.getBBox(path);
-    outputCanvas.style.height = bbox.height;
-    outputCanvas.style.width = bbox.width; 
+
+    canvasContext.height = bbox.height;
+    canvasContext.width = bbox.width;
          
     // http://snapsvg.io/docs/#Element.getTotalLength
     // Get the length of the path in pixels 
