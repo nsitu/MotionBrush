@@ -2,8 +2,8 @@ body{
   font-family: arial, helvetica, sans-serif;
   text-align: center;
 }
-#holder { border: 10px dashed #ccc; width: 140px; height: 100px; padding: 100px 80px 40px 80px; margin: 20px auto; color: #aaa; }
-#holder.hover { border: 10px dashed #333; }
+#dragAndDrop { border: 10px dashed #ccc; width: 140px; height: 100px; padding: 100px 80px 40px 80px; margin: 20px auto; color: #aaa; }
+#dragAndDrop.hover { border: 10px dashed #333; }
 
 p{
   width: 60%;
