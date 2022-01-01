@@ -39,12 +39,15 @@ dragAndDrop.ondragend = function() {
 
 dragAndDrop.ondrop = function(e) {
     // TODO: check that file format is SVG
-    this.className = ''; 
-    e.preventDefault(); 
+    this.className = '' 
+    e.preventDefault()
     // https://developer.mozilla.org/en-US/docs/Web/API/FileReader 
     // FileReader asynchronously reads files (or raw data buffers) using File or Blob objects
-    let reader = new FileReader();
+    let file = e.dataTransfer.files[0]
+    let reader = new FileReader()
+    console.log('ok');
     reader.onload = function(event) {
+        console.log('start');
         let graphic = Snap.parse( event.target.result );
         let path = graphic.select("path");
         // NOTE: you can also select an array of results instead of just the first: 
@@ -52,7 +55,7 @@ dragAndDrop.ondrop = function(e) {
         let segments = traversePath( path );
         console.log(segments);
     };
-    reader.readAsText(e.dataTransfer.files[0]);
+    reader.readAsText(file);
     return false;
 };
 
@@ -61,7 +64,7 @@ dragAndDrop.ondrop = function(e) {
   // describe each segment as an arc
   // return an array of arcs to be used by imagemagick for making warps
   function traversePath( path ) {
-    
+    console.log('traversePath');
     // Get the bounding box of the SVG; 
     // Resize the output canvas to match provided SVG
     let bbox = Snap.path.getBBox(path);
@@ -98,6 +101,7 @@ dragAndDrop.ondrop = function(e) {
    // -ends at starLocation + 1 (C)
   function processSegment(path, pathLength, startLocation, increment){
       
+        console.log('processSegment');
         // Find points A, B, and C as percentages of the whole path length
         let positionA = pathLength * ( startLocation ) / 100 ;
         let positionB = pathLength * ( startLocation + (increment/2) ) / 100;
