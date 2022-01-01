@@ -40,11 +40,10 @@ dragAndDrop.ondragend = function() {
 dragAndDrop.ondrop = function(e) {
     // TODO: check that file format is SVG
     this.className = ''; 
-    e.preventDefault();
-    var file = e.dataTransfer.files[0],
+    e.preventDefault(); 
     // https://developer.mozilla.org/en-US/docs/Web/API/FileReader 
     // FileReader asynchronously reads files (or raw data buffers) using File or Blob objects
-    reader = new FileReader();
+    let reader = new FileReader();
     reader.onload = function(event) {
         let graphic = Snap.parse( event.target.result );
         let path = graphic.select("path");
@@ -53,7 +52,7 @@ dragAndDrop.ondrop = function(e) {
         let segments = traversePath( path );
         console.log(segments);
     };
-    // reader.readAsText(file);
+    reader.readAsText(e.dataTransfer.files[0]);
     return false;
 };
 
