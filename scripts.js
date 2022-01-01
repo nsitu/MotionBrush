@@ -149,11 +149,11 @@ dragAndDrop.ondrop = function(e) {
         let minorArcLength  = (minorArcAngle/ Math.PI) * theCircle.circumference;
         let majorArcLength = (majorArcAngle/ Math.PI) * theCircle.circumference;
         if ( Math.abs(targetArcLength - minorArcLength) < Math.abs(targetArcLength - majorArcLength) ){
-            arcAngle = minorAngle;
+            arcAngle = minorArcAngle;
             arcLength = minorArcLength;
         }
         else{
-            arcAngle = majorAngle;
+            arcAngle = majorArcAngle;
             arcLength = majorArcLength;
         }
 
