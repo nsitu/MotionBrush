@@ -70,8 +70,8 @@ dragAndDrop.ondrop = function(e) {
     // Resize the output canvas to match provided SVG
     let bbox = Snap.path.getBBox(path);
 
-    canvasContext.height = bbox.height;
-    canvasContext.width = bbox.width;
+    outputCanvas.height = bbox.height;
+    outputCanvas.width = bbox.width;
          
     // http://snapsvg.io/docs/#Element.getTotalLength
     // Get the length of the path in pixels 
@@ -103,7 +103,7 @@ dragAndDrop.ondrop = function(e) {
    // -ends at starLocation + 1 (C)
   function processSegment(path, pathLength, startLocation, increment){
       
-        console.log('processSegment');
+        console.log('processSegment at start location '+startLocation)  ;
         // Find points A, B, and C as percentages of the whole path length
         let positionA = pathLength * ( startLocation ) / 100 ;
         let positionB = pathLength * ( startLocation + (increment/2) ) / 100;
@@ -187,7 +187,7 @@ dragAndDrop.ondrop = function(e) {
             C: C,
             circle: theCircle
         }
-        console.log( arc );
+        //console.log( arc );
         return arc;
    
   }
