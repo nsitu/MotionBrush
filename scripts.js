@@ -53,8 +53,9 @@ dragAndDrop.ondrop = function(e) {
         let path = graphic.select("path");
         // NOTE: you can also select an array of results instead of just the first: 
         // ie. let paths = graphic.selectAll("path");
-        let segments = traversePath( path );
-        console.log(segments);
+        for ( segment in traversePath( path ) ){
+            renderSegment(segment);
+        }
     };
     reader.readAsText(file);
     return false;
@@ -200,6 +201,12 @@ dragAndDrop.ondrop = function(e) {
     p2.x = x + distance * Math.cos(radAngle);
     p2.y = y + distance * Math.sin(radAngle);
     return p2;
+  }
+
+
+  function renderSegment(segment){
+    console.log('rendering segment');
+    console.log(segment);
   }
 
   // takes a cubic path as per http://snapsvg.io/docs/#Snap.path.toCubic
