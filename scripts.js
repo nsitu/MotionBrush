@@ -179,8 +179,9 @@ dragAndDrop.ondrop = function(e) {
         // you would need to know the vertical dimensions of the input image. 
 
         let arc = {
-            arcAngle: arcAngle,
+            arcAngle: arcAngle, 
             rotateAngle: rotateAngle,
+            endAngle: arcAngle + rotateAngle,
             targetArcLength: targetArcLength,
             arcLength: arcLength,
             A: A,
@@ -204,9 +205,31 @@ dragAndDrop.ondrop = function(e) {
   }
 
 
-  function renderSegment(segment){
+  function renderSegment(arc){
     console.log('rendering segment');
     console.log(segment);
+    /*
+    {
+            arcAngle: arcAngle,
+            rotateAngle: rotateAngle,
+            targetArcLength: targetArcLength,
+            arcLength: arcLength,
+            A: A,
+            B: B,
+            C: C,
+            circle: theCircle
+        }
+        */
+
+    canvasContext.arc(
+        arc.circle.x,
+        arc.circle.y,
+        arc.circle.r,
+        arc.rotateAngle,
+        arc.endAngle
+    );
+    canvasContext.stroke();
+
   }
 
   // takes a cubic path as per http://snapsvg.io/docs/#Snap.path.toCubic
