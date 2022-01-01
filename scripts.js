@@ -3,174 +3,188 @@
 let textureImg = new Image();
 textureImg.crossOrigin = 'anonymous';
 textureImg.src = 'sloth-wide.jpg';
-
-let textureCanvas = document.createElement('canvas');
-textureCanvas.id = "canvas";
-document.body.appendChild(textureCanvas);
-
-let textureContext = textureCanvas.getContext('2d');
 textureImg.onload = function() {
-    textureCanvas.width = textureImg.width;
-    textureCanvas.height = textureImg.height;
-    // paint an image to canvas so that we can address individual pixels.
-    // TODO: investigate how this works for really large images
-    // i.e. we may have to divide a large panorama into many individual pieces in advance.
-    textureContext.drawImage(textureImg, 0, 0);
-    textureImg.style.display = 'none';
+    // TODO pass the image along to imagemagick?
 }; 
 
+// this is a place to reassemble all the warped segments created by imagemagick.
+// it should have at minimum the same dimensions as our input SVG
+let outputCanvas = document.createElement('canvas');
+outputCanvas.id = "outputCanvas";
+document.body.appendChild(outputCanvas);
+// TODO: set dimensions to match SVG
+ 
 
-// get the color of a pixel at a given location on the canvas.
-function pick(x,y) {
-  let pixel = textureContext.getImageData(x, y, 1, 1);
-  let data = pixel.data;
-  return `rgba(${data[0]}, ${data[1]}, ${data[2]}, ${data[3] / 255})`;
-}
-
-
-const holder = document.getElementById('holder'); 
+const dragAndDrop = document.getElementById('dragAndDrop'); 
 const status = document.getElementById('status');
 
+// Check if browser supports file drag and drop
+if (typeof window.FileReader === 'undefined') {
+    // notify users that browser does not support file drag and drop 
+    dragAndDrop.innerHTML = 'Sorry, drag and drop is not working.';
+} else {
+    // provide instructions for drag and drop. 
+    dragAndDrop.innerHTML = 'Drag and drop an .svg file here.';
+}
 
-  if (typeof window.FileReader === 'undefined') {
-      holder.innerHTML = 'Sorry, drag and drop is not working.';
-  } else {
-      holder.innerHTML = 'Drag and drop an .svg file here.';
-  }
+// hover styling for drag and drop
+dragAndDrop.ondragover = function() {
+    this.className = 'hover';
+    return false;
+}
+dragAndDrop.ondragend = function() {
+    this.className = '';
+    return false;
+}
 
-  holder.ondragover = function() {
-      this.className = 'hover';
-      return false;
-  };
-  holder.ondragend = function() {
-      this.className = '';
-      return false;
-  };
-  holder.ondrop = function(e) {
-      this.className = ''; 
-      e.preventDefault();
-      var file = e.dataTransfer.files[0],
-      // https://developer.mozilla.org/en-US/docs/Web/API/FileReader 
-      // FileReader asynchronously reads files (or raw data buffers) using File or Blob objects
-      reader = new FileReader();
-      reader.onload = function(event) {
+dragAndDrop.ondrop = function(e) {
+    // TODO: check that file format is SVG
+    this.className = ''; 
+    e.preventDefault();
+    var file = e.dataTransfer.files[0],
+    // https://developer.mozilla.org/en-US/docs/Web/API/FileReader 
+    // FileReader asynchronously reads files (or raw data buffers) using File or Blob objects
+    reader = new FileReader();
+    reader.onload = function(event) {
         let graphic = Snap.parse( event.target.result );
         let path = graphic.select("path");
         // NOTE: you can also select an array of results instead of just the first: 
         // ie. let paths = graphic.selectAll("path");
-        traversePath( path );
-      };
-      reader.readAsText(file);
-      return false;
-  };
+        let segments = traversePath( path );
+        console.log(segments);
+    };
+    // reader.readAsText(file);
+    return false;
+};
 
-  // for every point along the path, draw circles to an SVG.
+  // traverse the path 
+  // divide the path into segments
+  // describe each segment as an arc
+  // return an array of arcs to be used by imagemagick for making warps
   function traversePath( path ) {
     
-    // this is a blank SVG onto which we will draw coloured circles
-    let s = Snap("#svg");
-
-    // Get the bounding box of the SVG;
-    // We use this later to resize the output canvas.
+    // Get the bounding box of the SVG; 
+    // Resize the output canvas to match provided SVG
     let bbox = Snap.path.getBBox(path);
-    let theWidth = bbox.width;
-    let theHeight = bbox.height;
-    
-    // NOTE: it's possible to run transforms on Snap elements
-    // http://snapsvg.io/docs/#Element.transform
-    // However such transforms do not seem to affect the actual locations of points. 
-    // as such they do not make a difference for getPointAtLength() 
-
-    // I tried scaling down the SVG by halving the bounding box 
-    // but it did not seem to affect subsequent Cubics
-    // A viewbox has 4 params:  min-x, min-y, width and height
-    // let viewBox = bbox.x+' '+bbox.y+' '+(bbox.width/2)+' '+ (bbox.height/2);
-    // console.log(viewBox);
-    // path.attr({  viewBox: viewBox })
+    outputCanvas.style.height = bbox.height;
+    outputCanvas.style.width = bbox.width; 
          
     // http://snapsvg.io/docs/#Element.getTotalLength
     // Get the length of the path in pixels 
-    let pathLength = path.getTotalLength();
-
-    // console.log(pathLength);
-    // can you loop through the points along the path? 
-
-    // Keep track of the slope of the curve from point to point.
-    let slope;
+    let pathLength = path.getTotalLength(); 
     
-    // Given that we know the total length of the path.
-    // Given that any point on the path can be found by its distance from the start
-    // We can traverse the path by incrementing percentage-wise along its length
-    // - to divide a path into  100 points,  increment by 1 percent
-    // - to divide a path into  1000 points,  increment by 0.1 percent
+    // Let's divide the path into an array of segments
+    let segments = [];
 
-    for (i = 1; i <100; i+=0.1){
-        
-        // http://snapsvg.io/docs/#Element.getPointAtLength
-        // Find a point at i percent along the path
-        // Get position as pixels from start of path
-        var position = i * pathLength / 100;
-        let p1 = path.getPointAtLength(position);
+    // Each segment will comprises a percentage of the whole length of the path. 
+    // we define this percentage as "increment" 
+    // a smaller increment will result in smaller segments (e.g. thinner slices)
+    let increment = 1; 
 
-        // NOTE: getPointAtLength returns an object like this:
-        // { x:number, y:number, alpha:number } 
-        // "alpha" here is the "angle of derivative". 
-        // I take this to mean the "slope of the tangent"
-
-        // Definitions:
-        // Tangent Line: a straight line that "just touches" a curve at a given point
-        // Normal Line: a straight line perpendicular to a tangent line at a given point on a curve
-
-        // Find the change in tangent slope between the this point and the previous point.
-        var deltaSlope = Math.abs(p1.alpha - slope);
-        // Update the "previous slope" in preparation for the next iteration
-        slope = p1.alpha;
-
-        // TODO: Perhaps we could keep a history of recent slopes here
-        // This could allow us access to a rolling average 
-        // This could be useful to smooth out dramatic curves.
-        // slopes.push(p1.alpha);
-        // if (slopes.length == 5) { slopes.shift(); } 
-        // console.log(slopes);
-        // var avgSlope = slopes.reduce((a,b) => (a+b)) / slopes.length;
-
-        // Hmm: I think this line of code helps to deal with sharp corners
-        // I need to test / study this more in depth.
-        if (deltaSlope > 300) deltaSlope = 360 - deltaSlope;
-        // if (deltaSlope >  180 && p1.alpha > slope) { deltaSlope = Math.abs(p1.alpha - 360) - slope; } 
-        // else{ deltaSlope = Math.abs(slope - 360) - p1.alpha;  }
-        //console.log(deltaSlope );
-
-        // http://snapsvg.io/docs/#Paper.circle
-        // mark the point with a black circle  (radius 4)
-        s.circle(p1.x, p1.y, 4).attr({ fill:"#000000" });  
-
-        // TODO: to simplify the below loop make a new path for the normal line 
-        // and traverse it with getPointAtLength as above.
-        for(j = 10; j < 100; j+=5){
-            let tX = (textureImg.width * i /100);
-            let tY = (textureImg.height * j /100);
-            let theColor = pick(tX,tY);
-            let ln =  getPoint(p1.x, p1.y, p1.alpha + 90, j + (deltaSlope*2) );
-        
-            // TODO: fix Error: <circle> attribute cx: Expected length, "NaN".
-            try{
-                s.circle(ln.x, ln.y, 2).attr({ fill: theColor });  
-            }
-            catch{
-                console.log(ln);
-            } 
-            var rn =  getPoint(p1.x, p1.y, p1.alpha + 90, - j -(deltaSlope*2) );
-            s.circle(rn.x, rn.y, 2).attr({ fill: theColor }); 
-        }
+    // increment percentage-wise along the path
+    // TODO: invesitigate whether you can use for(startLocation=0 here
+    for (startLocation = 1; startLocation <100; startLocation += increment ){
+        let segment = processSegment(path, pathLength, startLocation, increment);
+        segments.push(segment);
     }
+    // return segments to imagemagick as "instructions" for further processing.
+    return segments; 
+  }
 
-    // renderPath( Snap.path.toCubic(path) );
-    //    console.log(cubic);
-    //    path.attr({stroke: "#ffcc00", fill:"transparent", transform: "s.8" , strokeWidth: 20 });           
-    //     path.attr({stroke: "#ffcc00", fill:"transparent", strokeWidth: 20 });           
-    //var g = s.group().append( path );
+   // Given a Snap path (path) and 
+   // Given a percentage position along the path (startLocation) 
+   // Find an arc to approximate the segment that
+   // -begins at startLocation (A) 
+   // -passes through startLocation +0.5 (B)
+   // -ends at starLocation + 1 (C)
+  function processSegment(path, pathLength, startLocation, increment){
+      
+        // Find points A, B, and C as percentages of the whole path length
+        let positionA = pathLength * ( startLocation ) / 100 ;
+        let positionB = pathLength * ( startLocation + (increment/2) ) / 100;
+        let positionC = pathLength * ( startLocation + increment ) / 100;
 
+        // Find the targeted / approximate length of the resulting arc
+        let targetArcLength = positionC - positionA;
+
+        // Find points A, B, and C as pixel coordinates
+        // http://snapsvg.io/docs/#Element.getPointAtLength
+        let A = path.getPointAtLength(positionA);
+        let B = path.getPointAtLength(positionB);
+        let C = path.getPointAtLength(positionC);
+
+        // ==================================================
+        // NOTE: getPointAtLength returns an object like: { x:number, y:number, alpha:number } 
+        // For reference, "alpha" is the "angle of derivative", i.e. the "slope of the tangent".
+        // ==================================================
+
+        // Store the percentage-based position along the path for future reference. 
+        // (e.g. to calculate which pixel-range in the texture image should apply)
+        A.position = positionA;
+        B.position = positionB;
+        C.position = positionC;
+
+        // find the circle that passes through points  A, B, and C
+        let theCircle = findCircle(A.x, A.y, B.x, B.y, C.x, C.y);
+
+        // ==================================================
+        // MATH NOTES:
+        // Some detail about the Math for the section below.
+        // The central angle to a chord is:  2 * Math.asin( chord / 2 * radius)
+        // https://en.wikipedia.org/wiki/Chord_(geometry)
+        // In JavaScript, Math.asin() returns a numeric value between 
+        // -π/2 and π/2 radians for x between -1 and 1. 
+        // If the value of x is outside this range, it returns NaN.
+        // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/asin
+        // ==================================================
+
+        // Find the angles of the major and minor arcs whose endpoints are A and C
+        let arcChord = findDistance(C.x,C.y, A.x, A.y)
+        let minorArcAngle = 2 * Math.asin( arcChord / theCircle.diameter)
+        let majorArcAngle = Math.PI - minorArcAngle;
+        // Determine whether to use the major or minor arc based on proximity to target/expected arc length.
+        let minorArcLength  = (minorArcAngle/ Math.PI) * theCircle.circumference;
+        let majorArcLength = (majorArcAngle/ Math.PI) * theCircle.circumference;
+        if ( Math.abs(targetArcLength - minorArcLength) < Math.abs(targetArcLength - majorArcLength) ){
+            arcAngle = minorAngle;
+            arcLength = minorArcLength;
+        }
+        else{
+            arcAngle = majorAngle;
+            arcLength = majorArcLength;
+        }
+
+        // Find the angles of the major and minor arcs whose endpoints are 
+        // point A and the point at the top of the circle.
+        // This angle corresponds to the amount of rotation applied to the arc of interest
+        let rotateChord = findDistance(theCircle.x,theCircle.yTop, A.x, A.y)
+        let minorRotateAngle = 2 * Math.asin( rotateChord / theCircle.diameter)
+        let majorRotateAngle = Math.PI - minorRotateAngle
+        // determine whether to use the major or minor arc based on the sign of point A.
+        if (A.x < 0){
+            rotateAngle = minorRotateAngle;
+        }
+        else{
+            rotateAngle = majorRotateAngle;
+        }
+
+        // TODO you might need to calculate the top_radius and the bottom_radius as well
+        // otherwise imagemagick will default to its own opinions on the matter.
+        // you would need to know the vertical dimensions of the input image. 
+
+        let arc = {
+            arcAngle: arcAngle,
+            rotateAngle: rotateAngle,
+            targetArcLength: targetArcLength,
+            arcLength: arcLength,
+            A: A,
+            B: B,
+            C: C,
+            circle: theCircle
+        }
+        console.log( arc );
+        return arc;
+   
   }
  
 
@@ -260,8 +274,15 @@ const status = document.getElementById('status');
   }
 
 
+// Calculatedist the distance between two points
+function findDistance(x1, y1, x2, y2) { 
+	let xDiff = x1 - x2; 
+	let yDiff= y1 - y2; 
+	return Math.sqrt(xDiff * xDiff + yDiff * yDiff);
+}
 
-// Function to find the circle on which the given three points lie
+
+// Find the center and radius for a circle that passes through 3 given points.
 // https://www.geeksforgeeks.org/equation-of-circle-when-three-points-on-the-circle-are-given/
 function findCircle(x1, y1, x2, y2, x3, y3)
 {
@@ -291,14 +312,27 @@ function findCircle(x1, y1, x2, y2, x3, y3)
 
 	var r = Math.sqrt(sqr_of_r); // r is the radius
 
-	console.log("Centre = (" + h + ", "+ k +")");
+    // find the y-coordinate of the top of the circle
+    let yTop = k + r;
+
+    console.log("Centre = (" + h + ", "+ k +")");
     // number.toFixed(digits) represents a number as a string with a given precision (i.e. the number of digits after the decimal)
 	console.log( "Radius = " + r.toFixed(5)); 
-}
 
-var x1 = 1, y1 = 1;
-var x2 = 2, y2 = 4;
-var x3 = 5, y3 = 3;
-findCircle(x1, y1, x2, y2, x3, y3);
+    // return a decription of the circle
+    // x - x-coordinate of center
+    // y - y-coordinate of center
+    // r - radius of circle
+    // t - y coordinate of top of circle
+    return {
+        x: h,
+        y: k,
+        radius: r,
+        diameter: 2 * r,
+        circumference: 2 * Math.PI * r,
+        yTop: yTop
+    }
+	
+}
 
 
