@@ -12,7 +12,6 @@ textureImg.onload = function() {
 let outputCanvas = document.createElement('canvas');
 outputCanvas.id = "outputCanvas";
 document.body.appendChild(outputCanvas); 
-let canvasContext = outputCanvas.getContext("2d");
 
  
 
@@ -46,14 +45,14 @@ dragAndDrop.ondrop = function(e) {
     // FileReader asynchronously reads files (or raw data buffers) using File or Blob objects
     let file = e.dataTransfer.files[0]
     let reader = new FileReader()
-    console.log('ok');
+    //console.log('ok');
     reader.onload = function(event) {
-        console.log('start');
+        //console.log('start');
         let graphic = Snap.parse( event.target.result );
         let path = graphic.select("path");
         // NOTE: you can also select an array of results instead of just the first: 
         // ie. let paths = graphic.selectAll("path");
-        for ( segment in traversePath( path ) ){
+        for ( segment of traversePath( path ) ){
             renderSegment(segment);
         }
     };
@@ -66,13 +65,13 @@ dragAndDrop.ondrop = function(e) {
   // describe each segment as an arc
   // return an array of arcs to be used by imagemagick for making warps
   function traversePath( path ) {
-    console.log('traversePath');
+    //console.log('traversePath');
     // Get the bounding box of the SVG; 
     // Resize the output canvas to match provided SVG
     let bbox = Snap.path.getBBox(path);
 
-    outputCanvas.height = bbox.height;
-    outputCanvas.width = bbox.width;
+    outputCanvas.height = bbox.height * 4;
+    outputCanvas.width = bbox.width * 2;
          
     // http://snapsvg.io/docs/#Element.getTotalLength
     // Get the length of the path in pixels 
@@ -105,19 +104,25 @@ dragAndDrop.ondrop = function(e) {
   function processSegment(path, pathLength, startLocation, increment){
       
         console.log('processSegment at start location '+startLocation)  ;
+        
         // Find points A, B, and C as percentages of the whole path length
-        let positionA = pathLength * ( startLocation ) / 100 ;
-        let positionB = pathLength * ( startLocation + (increment/2) ) / 100;
-        let positionC = pathLength * ( startLocation + increment ) / 100;
+        let positionA = ( startLocation ) / 100 ;
+        let positionB = ( startLocation + (increment/2) ) / 100;
+        let positionC = ( startLocation + increment ) / 100;
 
-        // Find the targeted / approximate length of the resulting arc
-        let targetArcLength = positionC - positionA;
+        // Find points A, B, and C as pixel position along the path 
+        let pixelPositionA = pathLength * positionA;
+        let pixelPositionB = pathLength * positionB;
+        let pixelPositionC = pathLength * positionC;
+
+        // Find the targeted / approximate pixel length of the resulting arc
+        let targetArcLength = pixelPositionC - pixelPositionA;
 
         // Find points A, B, and C as pixel coordinates
         // http://snapsvg.io/docs/#Element.getPointAtLength
-        let A = path.getPointAtLength(positionA);
-        let B = path.getPointAtLength(positionB);
-        let C = path.getPointAtLength(positionC);
+        let A = path.getPointAtLength(pixelPositionA);
+        let B = path.getPointAtLength(pixelPositionB);
+        let C = path.getPointAtLength(pixelPositionC);
 
         // ==================================================
         // NOTE: getPointAtLength returns an object like: { x:number, y:number, alpha:number } 
@@ -147,13 +152,14 @@ dragAndDrop.ondrop = function(e) {
         // Find the angles of the major and minor arcs whose endpoints are A and C
         let arcChord = findDistance(C.x,C.y, A.x, A.y)
         let minorArcAngle = 2 * Math.asin( arcChord / theCircle.diameter)
-        let majorArcAngle = Math.PI - minorArcAngle;
+        let majorArcAngle = (2*Math.PI) - minorArcAngle;
+
         // Determine whether to use the major or minor arc based on proximity to target/expected arc length.
-        let minorArcLength  = (minorArcAngle/ Math.PI) * theCircle.circumference;
-        let majorArcLength = (majorArcAngle/ Math.PI) * theCircle.circumference;
+        let minorArcLength  = (minorArcAngle/ (2*Math.PI) ) * theCircle.circumference;
+        let majorArcLength = (majorArcAngle/ (2*Math.PI) ) * theCircle.circumference;
         if ( Math.abs(targetArcLength - minorArcLength) < Math.abs(targetArcLength - majorArcLength) ){
             arcAngle = minorArcAngle;
-            arcLength = minorArcLength;
+            arcLength = minorArcLength; 
         }
         else{
             arcAngle = majorArcAngle;
@@ -165,13 +171,18 @@ dragAndDrop.ondrop = function(e) {
         // This angle corresponds to the amount of rotation applied to the arc of interest
         let rotateChord = findDistance(theCircle.x,theCircle.yTop, A.x, A.y)
         let minorRotateAngle = 2 * Math.asin( rotateChord / theCircle.diameter)
-        let majorRotateAngle = Math.PI - minorRotateAngle
+        let majorRotateAngle = (2*Math.PI) - minorRotateAngle
+        
+        console.log("minor rotate angle "+minorRotateAngle);
+        console.log("major rotate angle "+majorRotateAngle);
         // determine whether to use the major or minor arc based on the sign of point A.
-        if (A.x < 0){
+        if (A.x > theCircle.x){
+            console.log('A.x is '+A.x+' and  circle x is '+theCircle.x+' so we will use the minor angle');
             rotateAngle = minorRotateAngle;
         }
         else{
             rotateAngle = majorRotateAngle;
+            console.log('A.x is '+A.x+' and  circle x is '+theCircle.x+' so we will use the major angle'); 
         }
 
         // TODO you might need to calculate the top_radius and the bottom_radius as well
@@ -189,7 +200,7 @@ dragAndDrop.ondrop = function(e) {
             C: C,
             circle: theCircle
         }
-        //console.log( arc );
+        console.log( arc );
         return arc;
    
   }
@@ -207,7 +218,7 @@ dragAndDrop.ondrop = function(e) {
 
   function renderSegment(arc){
     console.log('rendering segment');
-    console.log(segment);
+    console.log(arc);
     /*
     {
             arcAngle: arcAngle,
@@ -221,16 +232,58 @@ dragAndDrop.ondrop = function(e) {
         }
         */
 
+
+        
+    console.log([arc.circle.x,
+        arc.circle.y,
+        arc.circle.radius,
+        arc.rotateAngle,
+        arc.endAngle]);
+
+
+    let canvasContext = outputCanvas.getContext("2d");
+
+
+    canvasContext.beginPath();
+    canvasContext.arc(arc.circle.x, arc.circle.y, arc.circle.radius, 0, 2 * Math.PI);
+    canvasContext.lineWidth = 2;
+    canvasContext.strokeStyle = 'rgb(100,100,100)'
+    canvasContext.stroke();
+
+    canvasContext.beginPath();
     canvasContext.arc(
         arc.circle.x,
         arc.circle.y,
-        arc.circle.r,
+        arc.circle.radius,
         arc.rotateAngle,
         arc.endAngle
-    );
+    );    
+
+    console.log( 'drawing an arc starting at point A '+arc.A.position+' percent along path.'+
+        ' using  circle centered at '+ arc.circle.x+','+arc.circle.y+
+        ' with radius '+arc.circle.radius+
+        ' and rotate angle '+arc.rotateAngle+' ( '+toDegrees(arc.rotateAngle) +' degrees) '+
+        ' and end angle '+arc.endAngle+' ( '+toDegrees(arc.endAngle) +' degrees) '
+        )
+
+    canvasContext.lineWidth = 10;
+    let r = arc.A.position * 255;
+    let g = 255 - arc.A.position * 255;
+    let b = 100
+    canvasContext.strokeStyle = 'rgb('+r+','+g+','+b+')';
     canvasContext.stroke();
 
   }
+
+    function toDegrees(radians){
+        return radians * (180/Math.PI);
+    }
+
+  function randomColor() {
+    var o = Math.round, r = Math.random, s = 255;
+    return 'rgb(' + o(r()*s) + ',' + o(r()*s) + ',' + o(r()*s)  + ')';
+ }
+
 
   // takes a cubic path as per http://snapsvg.io/docs/#Snap.path.toCubic
   // renders the path to HTML5 Canvas
@@ -350,9 +403,9 @@ function findCircle(x1, y1, x2, y2, x3, y3)
     // find the y-coordinate of the top of the circle
     let yTop = k + r;
 
-    console.log("Centre = (" + h + ", "+ k +")");
+    //console.log("Centre = (" + h + ", "+ k +")");
     // number.toFixed(digits) represents a number as a string with a given precision (i.e. the number of digits after the decimal)
-	console.log( "Radius = " + r.toFixed(5)); 
+	//console.log( "Radius = " + r.toFixed(5)); 
 
     // return a decription of the circle
     // x - x-coordinate of center

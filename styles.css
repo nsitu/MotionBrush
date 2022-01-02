@@ -10,13 +10,10 @@ p{
   margin: 30px auto ;
 }
 
-#output{
-  width: 1000px;
-  height: 1000px;
-  margin: 30px auto ;
-  text-align: left;
-  padding: 30px;
-  background: #eee;
+/* this only controls the apparent scaling 
+ and does not affect the size of the drawing context.*/
+#outputCanvas{
+ width: 100%;
 }
 
 #svg{
