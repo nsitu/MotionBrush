@@ -10,14 +10,46 @@
 <link rel="icon" href="favicon.png">
 </head>
 <body>
-    <h1>SVG Motion Brush</h1>
-    <p>Extract path from an SVG file, and image texture as a brushstroke.</p>
-    <div id="dragAndDrop">File API & FileReader API not supported</div>
-    <div id="status">Ready to go.</div>    
+    <section id="banner">
+      <h3>SVG Motion Brush</h3>
+      <p>Extract path from an SVG file, round corners, segment into series of arcs. Apply image texture.</p>
+    </section>
+    <div id="userInterface">
+      <div id="uploadArea">
+        <div id="dragAndDrop">
+          <p>File API & FileReader API not supported</p>
+        </div>
+      </div>
+      <div id="configArea">
+        <form id="inputParameters">
+          <div>
+            <label for="simplifyIncrement">Curve Simplification Increment<br/>
+              <span>Add a node at every # of Pixels along the Path.</span>
+            </label>
+            <input type="text" id="simplifyIncrement" placeholder="Pixels"  >
+          </div>
+          <div>
+            <label for="segmentIncrement">Segment Increment<br/>
+              <span>Create a segment at every # of Pixels along the Path.</span>
+            </label>
+            <input type="text" id="segmentIncrement" placeholder="Pixels"  >
+          </div>
+          <div>
+            <label for="roundedCornerRadius">Rounded Corner Radius<br/>
+              <span>Degree of roundedness applied to corners (pixels))</span>
+            </label>
+            <input type="text" id="roundedCornerRadius" placeholder="Pixels"  >
+          </div>
+        </form>
+      </div>
+    </div>
 
-<p>Created by <a href="https://nsitu.ca/">Harold Sikkema</a>.
-  <br/>HTML5 drag-and-drop by <a href="http://jsfiddle.net/jimschubert/DqcUg/">jimschubert</a>
-  
-  </p>
+    <div id="svgContainer"></div>
+    <main id="renderArea"></main>
+    
+    <footer>
+      <p>Created by <a href="https://nsitu.ca/">Harold Sikkema</a>. HTML5 drag-and-drop by <a href="http://jsfiddle.net/jimschubert/DqcUg/">jimschubert</a></p>
+    </footer>
+
 </body>
 </html>

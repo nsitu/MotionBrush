@@ -2,13 +2,31 @@ body{
   font-family: arial, helvetica, sans-serif;
   text-align: center;
 }
-#dragAndDrop { border: 10px dashed #ccc; width: 140px; height: 100px; padding: 100px 80px 40px 80px; margin: 20px auto; color: #aaa; }
-#dragAndDrop.hover { border: 10px dashed #333; }
 
-p{
-  width: 60%;
-  margin: 30px auto ;
+
+#uploadArea{
+  
 }
+
+#dragAndDrop.hover { 
+  border: 10px dashed #333; 
+}
+
+#dragAndDrop {   
+  box-sizing: border-box;
+  border: 10px dashed #ccc; 
+  height: 100%;
+  color: #aaa; 
+  display: flex;
+  align-items: center;
+}
+#dragAndDrop p{
+  margin: 20px;
+}
+
+
+
+
 
 /* this only controls the apparent scaling 
  and does not affect the size of the drawing context.*/
@@ -16,13 +34,51 @@ p{
  width: 100%;
 }
 
-#svg{
-  width: 1000px;
-  min-height: 1000px;
+#svgContainer{
+  width: 25%;
+  margin: 0 auto;
+  /*display: none;*/
 }
 
-#status{
-  margin: 30px auto ;
+
+#userInterface{
+  display: flex;
+  flex-direction:row; 
+  margin: 0 auto;
+  justify-content: center;
+}
+
+
+#uploadArea{
+  margin-right: 15px;
+}
+
+form{
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+}
+form div{
+  display: flex; 
+  padding: 20px;
+  background: #eee;
+  margin-top: 2px;
+  align-items: center;
+}
+form label{
+  font-size: 0.8em;
+  text-align: left;
+}
+form label span{ 
+  font-style: italic;
+}
+form input{
+  padding: 5px 10px;
+  width: 25%;
+  margin-left: auto;
+}
+
+#status{ 
   text-align: center;
   padding: 30px;
 }
@@ -48,4 +104,27 @@ p{
     color: #666;
     cursor: pointer;
 
+}
+
+#banner{
+  display:flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+#banner h3{
+  margin-right: 30px;
+}
+
+footer p{
+  font-size: 0.8em;
+  color: #666;
+  
+  width: 60%;
+  margin: 30px auto ;
+}
+
+
+footer a{
+  color: #ff6600;
 }
