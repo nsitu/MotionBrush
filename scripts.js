@@ -20,13 +20,15 @@ let uploadedSVG = '';
 let config = {
     simplifyIncrement: 250,
     segmentIncrement: 10,
-    roundedCornerRadius:90,
+    roundedCornerRadius:10,
     sharpAngleThreshold: 90
 }
 
 // apply settings to UI elements. 
 for ( setting in config){  
-    document.querySelector('#'+setting).value = config[setting] 
+    let rangeSlider = document.querySelector('#'+setting);
+    rangeSlider.value = config[setting] 
+    rangeSlider.nextElementSibling.value = config[setting] 
 }
 
  
@@ -76,6 +78,8 @@ dragAndDrop.ondrop = function(e) {
 
 function go(){
     
+    svgContainer.style.display = "block";
+
     svgContainer.innerHTML = uploadedSVG;
 
     let svgElement = svgContainer.querySelector('svg');
@@ -1062,8 +1066,10 @@ function findCircle(x1, y1, x2, y2, x3, y3)
 
 document.querySelectorAll('#configArea input').forEach(el => {
     el.addEventListener('change', (event) => {
-        console.log(config)
-        config[event.target.id] = parseInt(event.target.value);
+        
+        let theValue = parseInt(event.target.value);
+        config[event.target.id] = theValue;
+        event.target.nextElementSibling.value = theValue
         console.log(config)
         go();
     });

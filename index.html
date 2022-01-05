@@ -15,6 +15,8 @@
       <p>Extract path from an SVG file, round corners, segment into series of arcs. Apply image texture.</p>
     </section>
     <div id="userInterface">
+      
+      <div id="svgContainer"></div>
       <div id="uploadArea">
         <div id="dragAndDrop">
           <p>File API & FileReader API not supported</p>
@@ -26,31 +28,34 @@
             <label for="simplifyIncrement">Curve Simplification Increment<br/>
               <span>Add a node at every # of Pixels along the Path.</span>
             </label>
-            <input type="text" id="simplifyIncrement" placeholder="Pixels"  >
+            <input class="rangeSlider" type="range" min="1" max="500" id="simplifyIncrement" placeholder="Pixels"  >
+            <input type="text" class="rangeValue">
           </div>
           <div>
             <label for="segmentIncrement">Segment Increment<br/>
               <span>Create a segment at every # of Pixels along the Path.</span>
             </label>
-            <input type="text" id="segmentIncrement" placeholder="Pixels"  >
+            <input class="rangeSlider" type="range" min="2" max="500"  id="segmentIncrement" placeholder="Pixels"  >
+            <input type="text" class="rangeValue">
           </div>
           <div>
             <label for="roundedCornerRadius">Rounded Corner Radius<br/>
               <span>Degree of roundedness applied to corners (pixels))</span>
             </label>
-            <input type="text" id="roundedCornerRadius" placeholder="Pixels"  >
+            <input class="rangeSlider" type="range" min="0" max="10"  id="roundedCornerRadius" placeholder="Pixels"  >
+            <input type="text" class="rangeValue">
           </div>
           <div>
             <label for="sharpAngleThreshold">Sharp Angle Threshold<br/>
               <span>The angle below which a corner is considered too sharp (degrees) </span>
             </label>
-            <input type="text" id="sharpAngleThreshold" placeholder="Degrees"  >
+            <input class="rangeSlider" type="range" min="90" max="170" id="sharpAngleThreshold" placeholder="Degrees"  >
+            <input type="text" class="rangeValue">
           </div>
         </form>
       </div>
     </div>
 
-    <div id="svgContainer"></div>
     <main id="renderArea"></main>
     
     <footer>

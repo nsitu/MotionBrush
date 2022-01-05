@@ -39,8 +39,13 @@ svg path {
 
 #svgContainer{
   width: 25%;
-  margin: 0 auto;
-  /*display: none;*/
+  box-sizing: border-box;
+  border: 10px solid #999; 
+  height: 100%;
+
+  margin: 0 10px 0 0;
+  align-self: center;
+  display: none;
 }
 
 
@@ -48,9 +53,8 @@ svg path {
   display: flex;
   flex-direction:row; 
   margin: 0 auto;
-  justify-content: center;
+  justify-content: center; 
 }
-
 
 #uploadArea{
   margin-right: 15px;
@@ -71,15 +75,29 @@ form div{
 form label{
   font-size: 0.8em;
   text-align: left;
+  width: 60%;
 }
 form label span{ 
   font-style: italic;
 }
 form input{
   padding: 5px 10px;
-  width: 25%;
   margin-left: auto;
 }
+
+
+form input.rangeSlider{
+  flex-basis: 300px;
+  flex-grow:0;
+}
+form input.rangeValue{
+  width: 30px;
+  border: grey;
+  text-align: center;
+  margin-left: 5px;
+  border-radius: 5px;
+}
+
 
 #status{ 
   text-align: center;
