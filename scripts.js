@@ -20,7 +20,8 @@ let uploadedSVG = '';
 let config = {
     simplifyIncrement: 250,
     segmentIncrement: 10,
-    roundedCornerRadius:90
+    roundedCornerRadius:90,
+    sharpAngleThreshold: 90
 }
 
 // apply settings to UI elements. 
@@ -133,8 +134,13 @@ function go(){
         
     let roundedPath = svgElement.querySelector('path');
 
+    let segments = pathToSegmentsArray( roundedPath ) ;
+    console.log('SEGMENTS +++++++++++++++++++++++++++');
+    console.log(segments);
+
+
     // traverse the rounded path into arc and line segments. 
-    for ( segment of pathToSegmentsArray( roundedPath ) ){
+    for ( segment of segments){
         renderSegment(segment)
     }
 }
@@ -222,6 +228,7 @@ function findPath(svgElement){
         }
 
         console.log(
+            " SIMPLIFY PATH ========================== "+
             " Increment by "+pixelIncrement+" pixels. "+
             " This is (roughly) a "+percentIncrement.toFixed(2)+" percent increment "+
             " Given that the path is "+pathLength+" pixels long" 
@@ -262,7 +269,9 @@ function findPath(svgElement){
     }
 
     console.log(
-        " Increment by "+pixelIncrement+" pixels. "+
+        " CREATE SEGMENTS ======================"+
+        " Converting path to array of segments. "+
+        " Incrementing by "+pixelIncrement+" pixels. "+
         " This is (roughly) a "+percentIncrement.toFixed(2)+" percent increment "+
         " Given that the path is "+pathLength+" pixels long" 
         );
@@ -281,25 +290,30 @@ function findPath(svgElement){
         }
     }
     // return segments to imagemagick as "instructions" for further processing.
-    return segments; 
+    return segments.flat(); 
   }
 
-   // Given a Snap path (path) and 
+   // Given a path element and 
    // Given a percentage position along the path (startLocation) 
    // Find an arc or line to approximate the segment that
    // -begins at startLocation (A) 
-   // -passes through startLocation +0.5 (B)
-   // -ends at starLocation + 1 (C)
+   // -passes through startLocation +0.5i (B)
+   // -ends at startLocation + 1i (C)
   function findSegment(path, pathLength, startLocation, increment, splitMode = false){
         
         if ((startLocation + increment) > 100) return false;
-        if (splitMode){
-            console.log('Splitting: increment is now '+increment+' instead of '+(2*increment));            
+        if (splitMode != false){
+            console.log(
+                'Splitting: '+splitMode+
+                'increment is now '+increment+' instead of '+(2*increment)
+            );            
         }
         // Find points A, B, and C as percentages of the whole path length
         let positionA = ( startLocation ) / 100 ;
         let positionB = ( startLocation + (increment/2) ) / 100;
         let positionC = ( startLocation + increment ) / 100;
+
+        console.log("FIND SEGMENT at Position "+positionA.toFixed(3)+" =================== ");
 
         // Find points A, B, and C as pixel position along the path 
         let pixelPositionA = pathLength * positionA;
@@ -326,15 +340,6 @@ function findPath(svgElement){
         B.position = positionB;
         C.position = positionC;
 
-        // TODO: find a straight line connecting A and C
-        // if B is on (or very near) this line, 
-        // it may better approximate the segment than any circle
-        // One could compare the slopes of AB and BC 
-        // If the slopes are sufficiently similar, 
-        // Use a straight line AC instead of a circle.
-
-
-
         // it may be useful to know 
         // if the slopes of the tangents are all within a similar range.
         // keeping in mind that they are cumulative
@@ -345,9 +350,9 @@ function findPath(svgElement){
 
         // LINEAR Segments
         // A linear segment has 180 degrees or (π radians)
-        // If the angle is less a degree away from "straight"
+        // If the angle is less a quarter of a degree away from "straight"
         // we will consider it straight. 
-        // NOTE: 0.5 degrees equals π/360 radians
+        // NOTE: 0.25 degrees equals π/720 radians
         if ( ( Math.PI  - angleABC ) <  (Math.PI / 720) ){
             console.log(
                 "Angle" + toDegrees(angleABC) + " is treated as linear "+
@@ -369,17 +374,19 @@ function findPath(svgElement){
         // until the curvature reaches an obtuse angle.
         // NOTE: 90 degrees equals π/2 radians
 
-//        if (angleABC < (Math.PI/2) ){
+        // let thresholdAngle = (Math.PI/2);
+        // get the sharpAngle threshold from the UI.
+        thresholdAngle = toRadians(config.sharpAngleThreshold);
 
-        let thresholdAngle = (Math.PI/2);
         if (angleABC < thresholdAngle ){
+
             console.log(
                 "Angle "+toDegrees(angleABC).toFixed(2) +" is too sharp "+
                 "(less than "+toDegrees(thresholdAngle).toFixed(2)+" degrees). "+
                 "Segment will be split in two");
             halfIncrement = increment/2;
-            firstHalf = findSegment(path, pathLength, startLocation, halfIncrement, true)
-            secondHalf = findSegment(path, pathLength, startLocation+halfIncrement, halfIncrement, true)
+            firstHalf = findSegment(path, pathLength, startLocation, halfIncrement, "first of two")
+            secondHalf = findSegment(path, pathLength, startLocation+halfIncrement, halfIncrement, "second of two.")
             return [firstHalf, secondHalf];
         }
 
@@ -391,6 +398,13 @@ function findPath(svgElement){
         // TO start, find the circle that passes through points  A, B, and C
         let theCircle = findCircle(A.x, A.y, B.x, B.y, C.x, C.y);  
   
+        // Discover which quadrant (I,II,III,IV) each arc point is in
+        // relative to the circle. 
+        A.quadrant = findQuadrant(A, theCircle);
+        B.quadrant = findQuadrant(B, theCircle);
+        C.quadrant = findQuadrant(C, theCircle);
+
+
         // ==================================================
         // MATH NOTES:
         // Some detail about the Math for the section below.
@@ -406,47 +420,111 @@ function findPath(svgElement){
         let arcChord = findDistance(C.x,C.y, A.x, A.y)
         let arcAngle = 2 * Math.asin( arcChord / theCircle.diameter)
         let arcLength  = (arcAngle / (2*Math.PI) ) * theCircle.circumference;
+        let arcIsClockwise = findIfArcIsClockwise(A,B,C)
+        let slopeAB= findSlope(A.x,A.y, B.x,B.y);
+        let yInterceptAB = -(slopeAB * A.x - A.y);
 
-        //let majorArcAngle = (2*Math.PI) - arcAngle;
+        let theArc = {
+            type: "arc",
+            chord: arcChord,
+            angle: arcAngle,
+            
+            rotateAngle: 0, /* Still need to calculate this. */
+            endAngle: 0,  /* Still need to calculate this. */
+            slopeAB:slopeAB,
+            yInterceptAB:yInterceptAB,
+            length: arcLength,
+            targetLength: targetArcLength,
+            A: A,
+            B: B,
+            C: C,
+            circle: theCircle,
+            isClockwise: arcIsClockwise,
+            isCounterClockwise: !arcIsClockwise,
+            direction: (arcIsClockwise) ? "Clockwise" : "CounterClockwise"
+            
+        }
+
         
 
-        // Find the angles of the major and minor arcs whose endpoints are 
-        // point A and the point at the top of the circle.
-        // This angle corresponds to the amount of rotation applied to the arc of interest
-        // HTML Canvas uses the right edge of a circle as a point of reference.
-        // ImageMagick uses the top of the circle as a point of reference.
+        // We should know enough abour the arc now to position it.
+        // relative to its circle. 
+        theArc.rotateAngle = findArcStartAngle(theArc);
+        theArc.endAngle = theArc.rotateAngle + theArc.angle
 
 
-        // there are times when thhis angle with point A doesn't behave well.
-        /* {x:A.x, y:A.y},  */
-        // while  the angle with point C behaves well.
-        /*{x:C.x, y:C.y}, */
-        // i dont understand why this is.         
-        
+       
+         
 
-        let rotateAngle = findAngle(
-                {x:A.x, y:A.y}, 
-                {x:theCircle.x, y:theCircle.y}, 
-                {x:theCircle.xRight, y:theCircle.yRight}
-            )
-        console.log(
-                "Rotate angle found. Start of arc is: "+rotateAngle+" radians "+
-                "or "+toDegrees(rotateAngle)+" degrees from a point on the right edge of the Circle." )
+        // let fallBack = false;
+
+        // if (slopeIsNegative){
+        //     console.log("slopeIsNegative");
+        //     if(cBelowAB){
+        //         console.log("cBelowAB")
+        //         if (aBelowB){
+        //             console.log("aBelowB")
+        //             referencePoint = A
+        //         }
+        //         if (aAboveB){
+        //             console.log("aAboveB")
+        //             referencePoint = A
+        //             // observed arc too far. 
+        //             // try fallback. 
+        //             fallBack = true;
+        //         }
+        //     }
+        //     if(cAboveAB){
+        //         console.log("cAboveAB");
+        //         if (aBelowB){
+        //             console.log("aBelowB")
+        //             referencePoint = A
+        //         }
+        //         if (aAboveB){
+        //             console.log("aAboveB")
+        //             referencePoint = A
+        //         }
+        //     }
+        // }
+        // if (slopeIsPositive){
+        //     console.log("slopeIsPositive");
+        //     if(cBelowAB){
+        //         console.log("cBelowAB")
+        //         if (aBelowB){
+        //             console.log("aBelowB")
+        //             // observed arc rotated too far. 
+        //             // 
+        //             // try subtracting  the arc's own angle from the rotate angle. 
+        //             fallBack = true;
+        //             referencePoint = A
+
+        //         }
+        //         if (aAboveB){
+        //             console.log("aAboveB")
+        //             referencePoint = A
+        //         }
+        //     }
+        //     if(cAboveAB){
+        //         console.log("cAboveAB");
+        //         if (aBelowB){
+        //             console.log("aBelowB")
+        //             referencePoint = A
+        //         }
+        //         if (aAboveB){
+        //             console.log("aAboveB")
+        //             referencePoint = C
+        //         }
+        //     }
+        // }
+   
         
         // NOTE: the origin (0,0) of an SVG is at the top left 
-        // The y value increases as you move down.
-        if (A.y < theCircle.y){
-            rotateAngle =  (2 * Math.PI) - rotateAngle
-
-
-            console.log("Using angle "+rotateAngle+" instead because "+
-            "A.y "+A.y+" is less than circle.y "+theCircle.y)
-        }
+        // The y value increases as you move down. 
          
         // TODO you might need to calculate the top_radius and the bottom_radius as well
         // otherwise imagemagick will default to its own opinions on the matter.
         // you would need to know the vertical dimensions of the input image. 
-
+/*
         let segment = {
             type: "arc",
             arcAngle: arcAngle, 
@@ -458,16 +536,175 @@ function findPath(svgElement){
             B: B,
             C: C,
             circle: theCircle
-        }
+        }*/
         //console.log( segment );
         // return an array because sometimes there's more than one arc.
         // e.g. when we work recursively. 
         // here it just happens to be an array of one.
-        return [segment]; 
+        return [theArc]; 
    
   }
  
 
+// given an arc with lots detail. 
+// work out the angle needed to position it upon its own circle. 
+function findArcStartAngle(theArc){
+ 
+    
+        // let slopeIsNegative = (slopeAB < 0);
+        // let slopeIsPositive = !slopeIsNegative;
+
+        // let cBelowAB = (C.y < (slopeAB * C.x + yInterceptAB))
+        // let cAboveAB = !cBelowAB
+
+        // let aBelowB =  (A.y < B.y) 
+        // let aAboveB = !aBelowB
+
+        //let majorArcAngle = (2*Math.PI) - arcAngle;
+        
+
+        // Find the angles of the major and minor arcs whose endpoints are 
+        // point A and the point at the top of the circle.
+        // This angle corresponds to the amount of rotation applied to the arc of interest
+        // HTML Canvas uses the right edge of a circle as a point of reference.
+        // ImageMagick uses the top of the circle as a point of reference.         
+        // For a clockwise sweep,
+        // we rotate the arc so as to begin at A.x, A.y 
+        // For a counterclockwise sweep 
+        // we rotate the arc so as to begin at C.x, C.y
+
+        // the reference point will either be A or C.
+        let referencePoint = theArc.A;
+        let circleCenter = {x:theArc.circle.x, y:theArc.circle.y}
+        let circleRight = {x:theArc.circle.xRight, y:theArc.circle.yRight}
+        let foundAngle 
+        let rotateAngle
+        let useMajorAngle = false;
+
+        if (theArc.isClockwise){
+            referencePoint = theArc.A;
+            if (theArc.A.quadrant == 'I' || theArc.A.quadrant == 'II'){
+                useMajorAngle = true; 
+            }
+        }
+        else{
+            referencePoint = theArc.C;
+            if (theArc.C.quadrant == 'I' || theArc.C.quadrant == 'II' ){
+                useMajorAngle = true; 
+            }
+        }
+
+        foundAngle = findAngle( referencePoint, circleCenter, circleRight )
+
+        if (useMajorAngle){
+            rotateAngle = (2 * Math.PI) - foundAngle
+        }
+        else{
+            rotateAngle = foundAngle
+        }
+
+        return rotateAngle;
+        
+        
+ 
+        
+
+        // if (fallBack){
+        //     console.log( 
+        //         'Performing fallback. '+
+        //         ' rotateAngle '+toDegrees(rotateAngle).toFixed(2) +
+        //         ' minus arcAngle '+ toDegrees(arcAngle).toFixed(2) + 
+        //         ' is '+toDegrees(rotateAngle - arcAngle).toFixed(2)
+
+        //     )
+        //     rotateAngle -= arcAngle;
+
+        // }else{
+       
+        //     if (referencePoint.y < theCircle.y){
+        //         rotateAngle =  (2 * Math.PI) - rotateAngle
+        //         console.log(
+        //             "Arc starting is above the circle center " +
+        //             "(referencePoint.y "+referencePoint.y.toFixed(2)+" is less than circle.y "+theCircle.y.toFixed(2)+") "+
+        //             "∴ we will use the major angle "+toDegrees(rotateAngle).toFixed(2)+" degrees ("+rotateAngle.toFixed(2)+" radians) "+
+        //             "instead of the minor angle. ");
+    
+        //     }
+
+        // }
+
+        // console.log(
+        //     "Minor rotate angle found for arc. "+
+        //     "Start of arc is: "+rotateAngle+" radians "+
+        //     "or "+toDegrees(rotateAngle)+" degrees "+
+        //     "from a point on the right edge of the Circle." )
+
+
+         
+}
+
+// given an arc with quadrant-aware points ABC
+// determine the direction of flow of the arc 
+// e.g. clockwise or counterclockwise.
+function findIfArcIsClockwise(A,B,C){
+   
+    // Duplicates are removed from this array.
+    // https://stackoverflow.com/a/9229821
+    let quadrants = [...new Set([
+            A.quadrant, 
+            B.quadrant, 
+            C.quadrant])
+        ];
+
+    let quadrantCount = quadrants.length
+    console.log('Arc Spans over ' + quadrantCount + ' Quadrants (' + quadrants.join(", ")+")" );
+    console.log('Start Quadrant is ' +A.quadrant);
+    console.log('Middle Quadrant is ' +B.quadrant);
+    console.log('End Quadrant is ' +C.quadrant);
+
+    let isClockwise;
+
+    if (quadrantCount == 1){
+        if ( A.quadrant == 'I' || A.quadrant == 'IV' ){
+            isClockwise = (A.y < B.y) ? true : false;
+        }
+        if ( A.quadrant == 'II' || A.quadrant == 'III' ){
+            isClockwise = (A.y < B.y) ? false : true;
+        }
+    }
+
+    if (quadrantCount == 2){
+        if ( A.quadrant == 'I' ) {
+            isClockwise = ( C.quadrant == 'II' ) ? false : true;
+        }
+        if ( A.quadrant == 'II' ) {
+            isClockwise = ( C.quadrant == 'III' ) ? false : true;
+        }
+        if ( A.quadrant == 'III' ) {
+            isClockwise = ( C.quadrant == 'IV' ) ? false : true;
+        }
+        if ( A.quadrant == 'IV' ) {
+            isClockwise = ( C.quadrant == 'I' ) ? false : true;
+        } 
+    }
+    
+    if (quadrantCount == 3){
+        if ( A.quadrant == 'I' ) {
+            isClockwise = ( B.quadrant == 'II' ) ? false : true;
+        }
+        if ( A.quadrant == 'II' ) {
+            isClockwise = ( B.quadrant == 'III' ) ? false : true;
+        }
+        if ( A.quadrant == 'III' ) {
+            isClockwise = ( B.quadrant == 'IV' ) ? false : true;
+        }
+        if ( A.quadrant == 'IV' ) {
+            isClockwise = ( B.quadrant == 'I' ) ? false : true;
+        } 
+    }
+    return isClockwise
+
+}
 
 
 /*
@@ -517,25 +754,44 @@ function createRoundedPathString(coords, radius=10, close=false) {
     return Math.acos((BC*BC+AB*AB-AC*AC)/(2*BC*AB));
   }
   
+  
+// Detwrmine which quadrant (I, II, III, IV)
+// Point A is located in
+// relative to point B
+function findQuadrant(A, B){
+    if (A.x > B.x && A.y < B.y) return 'I';
+    if (A.x < B.x && A.y < B.y) return 'II';
+    if (A.x < B.x && A.y > B.y) return 'III';
+    if (A.x > B.x && A.y > B.y) return 'IV';        
+}
 
   // render segments recursively. 
   // if they have been subdivided, there will be an array
   // instead of an object.
 function renderSegment(segment, level = 0){
+
+    console.log(" RENDER SEGMENT =============");
+    if (segment.type =="line") renderLine(segment)  
+        // I assume that a line would never happen at level > 0 
+        // however an the case of an arc we pass the level along to differentiate.
+        if (segment.type =="arc") renderArc(segment, level) 
+        /*
     if (Array.isArray(segment) ){
+        console.log(" segment is an array.")
+        console.log(segment);
+
         for (subSegment of segment){
             renderSegment(subSegment, level++);
         }
     }
     else{
-        if (segment.type =="line") renderLine(segment)  
-        // I assume that a line would never happen at level > 0 
-        // however an the case of an arc we pass the level along to differentiate.
-        if (segment.type =="arc") renderArc(segment, level) 
-    }
+        
+    }*/
 }
 
   function renderLine(line){
+
+    console.log( "RENDER LINE ============ ");
 
     // draw a line.
     canvasContext.beginPath();
@@ -559,15 +815,62 @@ function renderSegment(segment, level = 0){
 
   function renderArc(arc, level){ 
   
+    console.log( "RENDER ARC ============ ");
     
     if (level > 0){
         console.log('Rendering arc subsegment at level '+level);
         console.log(arc);
     }
+    console.log( 
+        'Position: '+(arc.A.position * 100).toFixed(2) +' percent: '+
+        ' Rendering arc using  circle centered at '+ arc.circle.x+','+arc.circle.y+
+        ' with radius '+arc.circle.radius+
+        ' and rotate angle '+arc.rotateAngle+' ( '+toDegrees(arc.rotateAngle) +' degrees) '+
+        ' and end angle '+arc.endAngle+' ( '+toDegrees(arc.endAngle) +' degrees) '
+    )
 
+    // render a circle with dot for context.
+    renderCircle(arc.circle, level);
+    renderDot(arc.circle, 'rgb(0,0,0)');
+
+    canvasContext.beginPath();
+    canvasContext.arc(
+        arc.circle.x,
+        arc.circle.y,
+        arc.circle.radius,
+        arc.rotateAngle,
+        arc.endAngle
+    );     
+    canvasContext.lineWidth = 80;
+    canvasContext.strokeStyle = colorForPosition(arc.A.position);
+    canvasContext.stroke();
+
+    // render points A and B for context. 
+    renderDot(arc.A, 'rgb(255,0,0)');
+    renderDot(arc.B, 'rgb(0,255,0)'); 
+
+  }
+
+  function colorForPosition(position){
+    let r = position * 255
+    let g = 255 - position * 255
+    let b = randomNumberBetween(100,200)
+    return 'rgba('+r+','+g+','+b+', 0.8)'
+  }
+
+
+function renderDot(point, color='rgb(0,0,0)'){
+    canvasContext.beginPath();
+    canvasContext.arc(point.x,point.y, 2, 0, 2 * Math.PI);
+    canvasContext.lineWidth = 2;
+    canvasContext.strokeStyle = color;
+    canvasContext.stroke();
+}
+
+function renderCircle(circle, level){
     // render a circle for context. 
     canvasContext.beginPath();
-    canvasContext.arc(arc.circle.x, arc.circle.y, arc.circle.radius, 0, 2 * Math.PI);
+    canvasContext.arc(circle.x, circle.y, circle.radius, 0, 2 * Math.PI);
     canvasContext.lineWidth = 2;
     if (level == 1){
         canvasContext.strokeStyle = 'rgb(255,255,0, 1)'
@@ -578,51 +881,15 @@ function renderSegment(segment, level = 0){
     else{
         canvasContext.strokeStyle = 'rgb(100,100,100, 0.5)'
     }
-    
     canvasContext.stroke();
-
-    canvasContext.beginPath();
-    canvasContext.arc(
-        arc.circle.x,
-        arc.circle.y,
-        arc.circle.radius,
-        arc.rotateAngle,
-        arc.endAngle
-    );    
-
-    console.log( 'drawing an arc starting at point A '+(arc.A.position * 100)+' percent along path.'+
-        ' using  circle centered at '+ arc.circle.x+','+arc.circle.y+
-        ' with radius '+arc.circle.radius+
-        ' and rotate angle '+arc.rotateAngle+' ( '+toDegrees(arc.rotateAngle) +' degrees) '+
-        ' and end angle '+arc.endAngle+' ( '+toDegrees(arc.endAngle) +' degrees) '
-        )
-
-    canvasContext.lineWidth = 80;
-    let r = arc.A.position * 255;
-    let g = 255 - arc.A.position * 255;
-    let b = randomNumberBetween(100,200)
-    canvasContext.strokeStyle = 'rgba('+r+','+g+','+b+', 0.8)';
-    canvasContext.stroke();
-
-    // render a dot for context.
-    canvasContext.beginPath();
-    canvasContext.arc(arc.A.x,arc.A.y, 2, 0, 2 * Math.PI);
-    canvasContext.lineWidth = 2;
-    canvasContext.strokeStyle = 'rgb(255,0,0)'
-    canvasContext.stroke();
-
-    // render a dot for context.
-    canvasContext.beginPath();
-    canvasContext.arc(arc.B.x,arc.B.y, 2, 0, 2 * Math.PI);
-    canvasContext.lineWidth = 2;
-    canvasContext.strokeStyle = 'rgb(0,255,0)'
-    canvasContext.stroke();
-
-
-  }
+}
 
     function toDegrees(radians){
         return radians * (180/Math.PI);
+    }
+
+    function toRadians(degrees){
+        return degrees * (Math.PI/180);
     }
 
 function randomNumberBetween(min, max){

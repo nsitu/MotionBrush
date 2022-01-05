@@ -3,10 +3,13 @@ body{
   text-align: center;
 }
 
-
-#uploadArea{
-  
+svg path {
+  fill:none;
+  stroke:#000000;
+  stroke-width: 10px;
+  stroke-miterlimit:10;
 }
+ 
 
 #dragAndDrop.hover { 
   border: 10px dashed #333; 
