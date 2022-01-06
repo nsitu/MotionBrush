@@ -91,7 +91,7 @@ form input.rangeSlider{
   flex-grow:0;
 }
 form input.rangeValue{
-  width: 30px;
+  width: 50px;
   border: grey;
   text-align: center;
   margin-left: 5px;

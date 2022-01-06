@@ -122,12 +122,19 @@ function go(){
     
     let path = findPath( svgElement ); 
 
+    // TODO: create a UI checkbox option to toggle 
+    // whether the path will be simplified 
+
+
     // if we arrived here we should have a suitable path. 
     // simplify the path by describing it as a set of coordinates
     // we can use the simplified path to construct a "rounded corners" variation.
     let pathAsCoordinates = simplifyPath(path);
 
     
+    // TODO: create a UI checkbox option to toggle 
+    // whether the corners will be rounded
+
     let roundedPathString = createRoundedPathString(pathAsCoordinates, config.roundedCornerRadius);    
     
     
@@ -139,12 +146,14 @@ function go(){
     let roundedPath = svgElement.querySelector('path');
 
     let segments = pathToSegmentsArray( roundedPath ) ;
+
+    
     console.log('SEGMENTS +++++++++++++++++++++++++++');
     console.log(segments);
 
 
     // traverse the rounded path into arc and line segments. 
-    for ( segment of segments){
+    for ( segment of segments ){
         renderSegment(segment)
     }
 }
@@ -223,7 +232,8 @@ function findPath(svgElement){
         // Or do you want all points to be a similar distance apart?
         // https://en.wikipedia.org/wiki/Ramer%E2%80%93Douglas%E2%80%93Peucker_algorithm
 
-        let pixelIncrement = config.simplifyIncrement; // this comes from the UI
+            // MAX here helps us to avoid a zero percent increment. 
+        let pixelIncrement = Math.max(config.simplifyIncrement, 1 ) ; // this comes from the UI
         let percentIncrement = 100 * ( pixelIncrement / pathLength );
         // if the given pixel increment is not workable, use a default. 
         if (percentIncrement > 20){ 
@@ -289,13 +299,49 @@ function findPath(svgElement){
         // in case the segment has been split. 
         // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Spread_syntax
 
-        if (results != false){
+        if (Array.isArray(results)){ 
             segments.push(...results)
         }
     }
+
+    
     // return segments to imagemagick as "instructions" for further processing.
-    return segments.flat(); 
+    return optimizeSegments(segments.flat(20), path)
   }
+
+
+// TODO: this is an effor to compare adjacent segments after the fact
+// it needs some work to be functional. 
+  function optimizeSegments(segments, path){
+      let optimized = [];
+      for(i in segments){
+          console.log("CHECKING SHARP");
+          if (i + 1 < (segments.length -1) ){
+            let first = segments[i];
+            let second = segments[i+1];
+            console.log([first,second]);
+            // make sure the segments exist.
+            if ( typeof first !== "undefined" &&  typeof second !== "undefined"){
+                let theAngle = findAngle(first.A, first.C, second.C);
+                console.log(theAngle);
+                
+                if ( theAngle < toRadians(config.sharpAngleThreshold) ) {
+                    console.log("SHARP ANGLE PERSISTS. ")
+                    console.log(theAngle+" is problematic, it is less than than "+ toRadians(config.sharpAngleThreshold));
+                    
+                } 
+                else{
+                    console.log(theAngle+" is fine, it is greater than "+ toRadians(config.sharpAngleThreshold));
+                }
+            }
+            else{
+                console.log("One of these two segments does not exist.");
+            }
+          }
+      }
+    return segments
+  }
+
 
    // Given a path element and 
    // Given a percentage position along the path (startLocation) 
@@ -303,27 +349,46 @@ function findPath(svgElement){
    // -begins at startLocation (A) 
    // -passes through startLocation +0.5i (B)
    // -ends at startLocation + 1i (C)
-  function findSegment(path, pathLength, startLocation, increment, split = false, level = 1){
+   function findSegment(path, pathLength, startLocation, increment, split = false, level = 1){
         
-        if ((startLocation + increment) > 100) return false;
+        if ((startLocation + increment) > 100){
+            increment = 99.99 - startLocation
+        }
         
         // Find points A, B, and C as percentages of the whole path length
         let positionA = ( startLocation ) / 100 ;
         let positionB = ( startLocation + (increment/2) ) / 100;
         let positionC = ( startLocation + increment ) / 100;
-
         
 
+
+
+
+
+        // add an offset so the path goes a touch further than it needs to. 
+        let offsetB = (increment  / 100) * 0.05;
+        let offsetC = (increment  / 100) * 0.10;
+        positionB +=  offsetB;
+        positionC += offsetC;
+
         if (split == false){
-            console.log("FIND SEGMENT from "+positionA.toFixed(3)+" to "+positionC.toFixed(3)+" =================== ");
+            console.log("SEGMENT "+positionA.toFixed(3)+" to "+positionC.toFixed(3)+" =================== ");
         }
         else{
             console.log(
-                '--- LEVEL '+level+' SPLIT ('+split+' of 2) -------- '+
+                '>>> L'+level+' SPLIT SEGMENT '+
+                positionA.toFixed(3)+' to '+positionC.toFixed(3)+'('+split+' of 2) -------- '+
                 'This segment has been split from a larger one. '+
                 'It Starts at '+ startLocation.toFixed(3) +'. '+
                 'Increment is '+increment.toFixed(3)+' instead of '+(2*increment).toFixed(3)
-            );            
+            );         
+            
+            if (split == 2 && level == 2){
+                console.log(
+                    '$$$$ DoubleChecking the input here. '+
+                    'I noticed that it might match a previous level 3 segment here. '
+                )
+            }
         }
 
         // Find points A, B, and C as pixel position along the path 
@@ -350,12 +415,10 @@ function findPath(svgElement){
         A.position = positionA;
         B.position = positionB;
         C.position = positionC;
-
-        // it may be useful to know 
-        // if the slopes of the tangents are all within a similar range.
-        // keeping in mind that they are cumulative
+ 
 
         let angleABC = findAngle(A,B,C);
+
         console.log("Angle ABC is "+ angleABC+" Radians or "+toDegrees(angleABC) + " degrees");
 
 
@@ -363,8 +426,12 @@ function findPath(svgElement){
         // A linear segment has 180 degrees or (π radians)
         // If the angle is less an eighth of a degree away from "straight"
         // we will consider it straight. 
+        // As a failsafe, if findAngle returns angleABC == NaN
+        // Then we will also use a line instead of an arc. 
+        // See also: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/acos#description
         // NOTE: 0.125 degrees equals π/720 radians
-        if ( ( Math.PI  - angleABC ) <  (Math.PI / 1440) ){
+         if ( ( Math.PI  - angleABC ) <  (Math.PI / 720) || isNaN(angleABC) ){
+        
             console.log(
                 "LINE FOUND --------- Angle" + toDegrees(angleABC) + " is treated as linear "+
                 "by proximity to 180 degrees.");
@@ -385,27 +452,118 @@ function findPath(svgElement){
         // NOTE: 90 degrees equals π/2 radians
 
         // let thresholdAngle = (Math.PI/2);
-        // get the sharpAngle threshold from the UI.
-        thresholdAngle = toRadians(config.sharpAngleThreshold);
+        // get the sharpAngle threshold from the UI. 
 
-        if (angleABC < thresholdAngle ){
+        if (angleABC < toRadians(config.sharpAngleThreshold)){ 
 
-            console.log(
-                "SHARP ANGLE ------ Angle "+toDegrees(angleABC).toFixed(2) +" is too sharp "+
-                "(less than "+toDegrees(thresholdAngle).toFixed(2)+" degrees). "+
-                "Segment will be split in two");
-            renderAngle(A,B,C);
-            halfIncrement = increment/2;
-            let nextLevel  = level + 1;
-            console.log('Incrementing level '+ level+' to '+nextLevel);
-            firstHalf = findSegment(path, pathLength, startLocation, halfIncrement, 1, nextLevel)
-            secondHalf = findSegment(path, pathLength, startLocation+halfIncrement, halfIncrement, 2, nextLevel )
-            return [firstHalf, secondHalf];
+            // if you reach beyond level 3, you've really got a sharp point on your hands. 
+            // maybe its better to soften it.
+            if (level > 3){
+
+                let midAC = findMidpoint(A.x,A.y, C.x, C.y);
+                // mutate B until if falls within range. 
+                while (findAngle(A,B,C) < toRadians(config.sharpAngleThreshold) ){
+                    let newB = findMidpoint(midAC.x, midAC.y, B.x, B.y);
+                    B.x = newB.x;
+                    B.y = newB.y; 
+                }
+                
+            }
+            // For the first few iterations we can tr to span the gap by splitting the segment.
+            else{ 
+
+                console.log(
+                    "SHARP ANGLE ------ Angle "+toDegrees(angleABC).toFixed(2) +" is too sharp "+
+                    "(less than "+config.sharpAngleThreshold.toFixed(2)+" degrees). "+
+                    "Segment will be split in two");
+
+                let angleColor;
+                if (level == 1 ) angleColor ='rgb(255,255,0)';
+                if (level == 2 ) angleColor ='#ff6600';
+                if (level == 3 ) angleColor ='rgb(0,255,255)';
+
+                
+                
+
+                //renderAngle(A,B,C, angleColor); 
+
+                // if AB is shorter than BC by some threshold.
+                // split the segment unti it is similar. 
+
+                let AB = findDistance(A.x,A.y,B.x,B.y)
+                let BC = findDistance(B.x,B.y, C.x, C.y)
+                
+                // if AB and BC are similar in length
+                // create three segments like a sandwich such that 
+                // the middle segment (the meat) occupies 1/2 the segment, 
+                // while the two edge segments (the bun) are 1/4 each. 
+                if  ( Math.abs(1 - (AB/BC) ) < 0.05 ){
+
+                    console.log(
+                        '### AB '+AB.toFixed(3)+' and BC '+BC.toFixed(3)+
+                        ' are similar. '+
+                        'Splitting into 3'); 
+
+                    let startLocationOne = startLocation
+                    let incrementOne = increment/10
+                    let startLocationTwo = startLocation + incrementOne
+                    let incrementTwo = increment*8/10
+                    let startLocationThree = startLocation + incrementOne + incrementTwo
+                    let incrementThree = increment/10
+                    let nextLevel  = level + 1;  
+                    return [
+                        findSegment(path, pathLength, startLocationOne, incrementOne, 1, nextLevel),
+                        findSegment(path, pathLength, startLocationTwo, incrementTwo, 2, nextLevel),
+                        findSegment(path, pathLength, startLocationThree, incrementThree, 2, nextLevel)
+                    ]
+                }
+
+                // if AB and BC are not similar in length 
+                // Find the longest of the two 
+                // and shorten it into a new 1/4 -length segment. 
+                // Find the shortest of the two, 
+                // and lengthen it into a new 3/4 -length segment
+                // The longer segment ought to now span the sharp corner. 
+                // hopefuly this smoothes it out. 
+                
+                else{
+
+                    
+                    console.log('### AB '+AB.toFixed(3)+' and BC '+BC.toFixed(3)+
+                    ' are not similar. Splitting into 2'); 
+
+                    let startLocationOne 
+                    let incrementOne 
+                    let startLocationTwo
+                    let incrementTwo
+
+                    if (AB > BC){
+                        startLocationOne = startLocation
+                        incrementOne = increment / 10
+                        startLocationTwo = startLocationOne + incrementOne
+                        incrementTwo = increment * 9/10
+                    }else{
+                        startLocationOne = startLocation
+                        incrementOne = increment * 9/10
+                        startLocationTwo = startLocationOne + incrementOne
+                        incrementTwo = increment / 10
+                    }
+                    let nextLevel  = level + 1;  
+                    return [
+                        findSegment(path, pathLength, startLocationOne, incrementOne, 1, nextLevel),
+                        findSegment(path, pathLength, startLocationTwo, incrementTwo, 2, nextLevel)
+                    ]
+                    
+                }
+           }
+             
+
         }
 
         // GENTLE CURVES (Obtuse Angles)
-        // If we have a gentle curve, 
-        // the angle will be less than 179.5 degrees and greater than 90 degrees. 
+        // If we have a gentle curve, the angle is constrained:
+        // to be less than 179.5 degrees 
+        // to be greater than 90 degrees (or greater than user-supplied value)
         // In this case we can approximate the segment as a circular arc.  
 
         // TO start, find the circle that passes through points  A, B, and C
@@ -420,7 +578,6 @@ function findPath(svgElement){
 
         // ==================================================
         // MATH NOTES:
-        // Some detail about the Math for the section below.
         // The central angle to a chord is: 2 * Math.asin( chord / 2 * radius)
         // https://en.wikipedia.org/wiki/Chord_(geometry)
         // In JavaScript, Math.asin() returns a numeric value between 
@@ -433,7 +590,7 @@ function findPath(svgElement){
         let arcChord = findDistance(C.x,C.y, A.x, A.y)
         let arcAngle = 2 * Math.asin( arcChord / theCircle.diameter)
         let arcLength  = (arcAngle / (2*Math.PI) ) * theCircle.circumference;
-        let arcIsClockwise = findIfArcIsClockwise(A,B,C)
+        let arcIsClockwise = findIfArcIsClockwise(A,B,C, theCircle)
         let slopeAB= findSlope(A.x,A.y, B.x,B.y);
         let yInterceptAB = -(slopeAB * A.x - A.y);
 
@@ -442,8 +599,8 @@ function findPath(svgElement){
             chord: arcChord,
             angle: arcAngle,
             level: level,
-            rotateAngle: 0, /* Still need to calculate this. */
-            endAngle: 0,  /* Still need to calculate this. */
+            rotateAngle: 0, /* To be calculated */
+            endAngle: 0,  /* To be calculated */
             slopeAB:slopeAB,
             yInterceptAB:yInterceptAB,
             length: arcLength,
@@ -454,14 +611,12 @@ function findPath(svgElement){
             circle: theCircle,
             isClockwise: arcIsClockwise,
             flowDirection: (arcIsClockwise) ? "Clockwise" : "CounterClockwise"
-            
         } 
 
-        // We should know enough abour the arc now to position it.
+        // We now know enough about the arc to position it.
         // relative to its circle. 
         theArc.rotateAngle = findArcStartAngle(theArc);
         theArc.endAngle = theArc.rotateAngle + theArc.angle
-
          
         // TODO you might need to calculate the top_radius and the bottom_radius as well
         // otherwise imagemagick will default to its own opinions on the matter.
@@ -527,66 +682,103 @@ function findArcStartAngle(theArc){
 // given an arc with quadrant-aware points ABC
 // determine the direction of flow of the arc 
 // e.g. clockwise or counterclockwise.
-function findIfArcIsClockwise(A,B,C){
+function findIfArcIsClockwise(A,B,C, circle){
    
-    // Duplicates are removed from this array.
+    // Using a Set here to remove duplicates. 
     // https://stackoverflow.com/a/9229821
-    let quadrants = [...new Set([
-            A.quadrant, 
-            B.quadrant, 
-            C.quadrant])
-        ];
+    let quadrants = [...new Set([  A.quadrant, B.quadrant, C.quadrant]) ];
 
+    // this is the number of quadrants directly ocupied by A B and C
     let quadrantCount = quadrants.length
-    console.log('Arc Spans over ' + quadrantCount + ' Quadrants (' + quadrants.join(", ")+")" );
+
+    // We still need to know the quadrantRange, 
+    // It's often (but not always) the same as quadrantCount
+    let quadrantRange
+    if ( A.quadrant == C.quadrant  && quadrantCount == 1 ){
+        // if the arc begins and ends in the same quadrant 
+        quadrantRange = 1
+    }
+    if ( quadrantsAreAdjacent( A.quadrant, C.quadrant) && quadrantCount == 2 ){
+        // if the quadrant count was 3, it would imply the use of a major arc
+        // but presumably we want to avoid this.
+        quadrantRange = 2
+    }
+    if ( quadrantsAreOpposite( A.quadrant, C.quadrant)){
+        // The range may differ from the count
+        // e.g. if A and B inhabit the same quadrant but C is opposite.
+        quadrantRange = 3
+    }
+    
+    console.log('Arc Spans ' + quadrantRange );
+    console.log('A,B, and C directly occupy ' + quadrantCount + ' Quadrants (' + quadrants.join(", ")+")" );
     console.log('Start Quadrant is ' +A.quadrant);
     console.log('Middle Quadrant is ' +B.quadrant);
     console.log('End Quadrant is ' +C.quadrant);
+ 
 
-    let isClockwise;
-
-    if (quadrantCount == 1){
+    if (quadrantRange == 1){
         if ( A.quadrant == 'I' || A.quadrant == 'IV' ){
-            isClockwise = (A.y < B.y) ? true : false;
+           return (A.y < B.y) ? true : false;
         }
         if ( A.quadrant == 'II' || A.quadrant == 'III' ){
-            isClockwise = (A.y < B.y) ? false : true;
+           return (A.y < B.y) ? false : true;
         }
     }
 
-    if (quadrantCount == 2){
+    if (quadrantRange == 2){
         if ( A.quadrant == 'I' ) {
-            isClockwise = ( C.quadrant == 'II' ) ? false : true;
+           return ( C.quadrant == 'II' ) ? false : true;
         }
         if ( A.quadrant == 'II' ) {
-            isClockwise = ( C.quadrant == 'III' ) ? false : true;
+           return ( C.quadrant == 'III' ) ? false : true;
         }
         if ( A.quadrant == 'III' ) {
-            isClockwise = ( C.quadrant == 'IV' ) ? false : true;
+           return ( C.quadrant == 'IV' ) ? false : true;
         }
         if ( A.quadrant == 'IV' ) {
-            isClockwise = ( C.quadrant == 'I' ) ? false : true;
+           return ( C.quadrant == 'I' ) ? false : true;
         } 
     }
     
-    if (quadrantCount == 3){
-        if ( A.quadrant == 'I' ) {
-            isClockwise = ( B.quadrant == 'II' ) ? false : true;
+    if (quadrantRange == 3){        
+        if ( A.quadrant == 'I' ){
+            if (B.x < circle.x) return (B.y < C.y)? false : true;
+            else return (B.y < A.y)? false : true;
         }
-        if ( A.quadrant == 'II' ) {
-            isClockwise = ( B.quadrant == 'III' ) ? false : true;
+        if ( A.quadrant == 'II'  ){
+            if (B.x < circle.x) return (B.y < A.y)? true : false;
+            else return (B.y < C.y)? true : false;
         }
-        if ( A.quadrant == 'III' ) {
-            isClockwise = ( B.quadrant == 'IV' ) ? false : true;
+        if ( A.quadrant == 'III'  ){
+            if (B.x < circle.x) return (B.y < A.y)? true : false;
+            else return (B.y < C.y)? true : false;
         }
-        if ( A.quadrant == 'IV' ) {
-            isClockwise = ( B.quadrant == 'I' ) ? false : true;
-        } 
-    }
-    return isClockwise
+        if ( A.quadrant == 'IV'  ){
+            if (B.x < circle.x) return (B.y < C.y)? false : true;
+            else return (B.y < A.y)? false : true;
+        }
+    } 
 
 }
 
+
+// check whether two quadrants are adjacent to each other. 
+function quadrantsAreAdjacent(quadrantOne, quadrantTwo){
+    let quadrants = [quadrantOne, quadrantTwo];
+    if (quadrants.includes('I') && quadrants.includes('II')) return true;
+    if (quadrants.includes('I') && quadrants.includes('IV')) return true;
+    if (quadrants.includes('II') && quadrants.includes('III')) return true;
+    if (quadrants.includes('III') && quadrants.includes('IV')) return true;
+    return false;
+}
+
+// check whether two quadrants are opposite each other. 
+function quadrantsAreOpposite(quadrantOne, quadrantTwo){
+    let quadrants = [quadrantOne, quadrantTwo];
+    if (quadrants.includes('I') && quadrants.includes('III')) return true;
+    if (quadrants.includes('II') && quadrants.includes('IV')) return true;
+    return false;
+}
 
 /*
 * Thanks to janispritzkau https://stackoverflow.com/a/65186378
@@ -614,26 +806,28 @@ function createRoundedPathString(coords, radius=10, close=false) {
 }
 
     
-  // given a starting point {x,y} 
-  // and an angle 0..360 and a pixel distance 0..10000,
-  // return a second point located nearby
-  function findNearbyPoint(x, y, angle, distance ){
+// given a starting point {x,y} 
+// and an angle 0..360 and a pixel distance 0..10000,
+// return a second point located nearby
+function findNearbyPoint(x, y, angle, distance ){
     var radAngle = angle * Math.PI / 180; // angle in radians
     var p2 = {x:0, y:0};
     p2.x = x + distance * Math.cos(radAngle);
     p2.y = y + distance * Math.sin(radAngle);
     return p2;
-  }
+}
 
-  // Given points A, B, C 
-  // Find angle ABC in Radians 
-  // Thanks to Walter Stabosz: https://stackoverflow.com/questions/17763392/
-  function findAngle(A,B,C) {
-    var AB = Math.sqrt(Math.pow(B.x-A.x,2)+ Math.pow(B.y-A.y,2));    
-    var BC = Math.sqrt(Math.pow(B.x-C.x,2)+ Math.pow(B.y-C.y,2)); 
-    var AC = Math.sqrt(Math.pow(C.x-A.x,2)+ Math.pow(C.y-A.y,2));
-    return Math.acos((BC*BC+AB*AB-AC*AC)/(2*BC*AB));
-  }
+// Given points A, B, C 
+// Find angle ABC in Radians 
+// Thanks to Walter Stabosz: https://stackoverflow.com/questions/17763392/
+function findAngle(A,B,C) {
+    let AB = Math.sqrt(Math.pow(B.x-A.x,2)+ Math.pow(B.y-A.y,2));    
+    let BC = Math.sqrt(Math.pow(B.x-C.x,2)+ Math.pow(B.y-C.y,2)); 
+    let AC = Math.sqrt(Math.pow(C.x-A.x,2)+ Math.pow(C.y-A.y,2));
+    let x = (BC*BC+AB*AB-AC*AC)/(2*BC*AB);
+    let angle = Math.acos(x); 
+    return angle
+}
   
   
 // Detwrmine which quadrant (I, II, III, IV)
@@ -646,9 +840,9 @@ function findQuadrant(A, B){
     if (A.x > B.x && A.y > B.y) return 'IV';        
 }
 
-  // render segments recursively. 
-  // if they have been subdivided, there will be an array
-  // instead of an object.
+// render segments recursively. 
+// if they have been subdivided, there will be an array
+// instead of an object.
 function renderSegment(segment, level = 0){
 
     console.log(" RENDER SEGMENT =============");
@@ -660,17 +854,17 @@ function renderSegment(segment, level = 0){
         
 }
 
-    function renderAngle(A,B,C){
-        // draw a line.
-        canvasContext.beginPath();
-        canvasContext.moveTo(A.x,A.y);
-        canvasContext.lineTo(B.x, B.y);
-        canvasContext.lineTo(C.x, C.y);
-        canvasContext.fillStyle = '#000000';
-        canvasContext.fill();
-    }
+function renderAngle(A,B,C, color = '#000000'){
+    // draw a line.
+    canvasContext.beginPath();
+    canvasContext.moveTo(A.x,A.y);
+    canvasContext.lineTo(B.x, B.y);
+    canvasContext.lineTo(C.x, C.y);
+    canvasContext.fillStyle = color;
+    canvasContext.fill();
+}
 
-  function renderLine(line){
+function renderLine(line){
 
     console.log( "RENDER LINE ============ ");
 
@@ -685,19 +879,20 @@ function renderSegment(segment, level = 0){
     canvasContext.strokeStyle = 'rgba('+r+','+g+','+b+', 0.5)';
     canvasContext.stroke();
 
-     // render a dot for context.
-     canvasContext.beginPath();
-     canvasContext.arc(line.A.x,line.A.y, 2, 0, 2 * Math.PI);
-     canvasContext.lineWidth = 2;
-     canvasContext.strokeStyle = 'rgb(0,0,0)'
-     canvasContext.stroke();
+    // render a dot for context.
+    canvasContext.beginPath();
+    canvasContext.rect(line.A.x,line.A.y, 5, 5);
+    //canvasContext.arc(line.A.x,line.A.y, 4, 0, 2 * Math.PI);
+    canvasContext.lineWidth = 2;
+    canvasContext.strokeStyle = 'rgb(255,0,255)'
+    canvasContext.stroke();
 
-  }
+}
 
-  function renderArc(arc, level){ 
-  
+function renderArc(arc, level){ 
+
     console.log( "RENDER ARC ============ ");
-    
+
     if (level > 0){
         console.log('Rendering arc subsegment at level '+level);
         console.log(arc);
@@ -712,7 +907,7 @@ function renderSegment(segment, level = 0){
 
     // render a circle with dot for context.
     renderCircle(arc.circle, level);
-    renderDot(arc.circle, 'rgb(0,0,0)');
+    renderDot(arc.circle, 'rgba(0,0,0,0.5)');
 
     canvasContext.beginPath();
     canvasContext.arc(
@@ -726,26 +921,27 @@ function renderSegment(segment, level = 0){
     canvasContext.strokeStyle = colorForPosition(arc.A.position);
     canvasContext.stroke();
 
-    // render points A and B for context. 
-    renderDot(arc.A, 'rgb(255,0,0)');
-    renderDot(arc.B, 'rgb(0,255,0)'); 
+    // render points A B ad C for context. 
+    renderDot(arc.A, 'rgb(255,0,0)', 2);
+    renderDot(arc.B, 'rgb(0,255,0)', 2); 
+    renderDot(arc.C, 'rgba(0,0,255,0.5)', 4);
 
-  }
+}
 
-  function colorForPosition(position){
+function colorForPosition(position){
     let r = position * 255
     let g = 255 - position * 255
     let b = randomNumberBetween(100,200)
     return 'rgba('+r+','+g+','+b+', 0.5)'
-  }
+}
 
 
-function renderDot(point, color='rgb(0,0,0)'){
+function renderDot(point, color='rgb(0,0,0)', radius= 2){
     canvasContext.beginPath();
-    canvasContext.arc(point.x,point.y, 2, 0, 2 * Math.PI);
+    canvasContext.arc(point.x,point.y, radius, 0, 2 * Math.PI);
     canvasContext.lineWidth = 2;
-    canvasContext.strokeStyle = color;
-    canvasContext.stroke();
+    canvasContext.fillStyle = color;
+    canvasContext.fill();
 }
 
 function renderCircle(circle, level){
@@ -753,114 +949,48 @@ function renderCircle(circle, level){
     canvasContext.beginPath();
     canvasContext.arc(circle.x, circle.y, circle.radius, 0, 2 * Math.PI);
     canvasContext.lineWidth = 2;
-    if (level == 1){
-        canvasContext.strokeStyle = 'rgba(255,255,0, 1)'
-    }
-    else if (level > 1){
-        canvasContext.strokeStyle = 'rgba(255,150,0, 1)'
-    }
-    else{
-        canvasContext.strokeStyle = 'rgba(100,100,100, 0.5)'
-    }
+    canvasContext.strokeStyle = 'rgba(100,100,100, 0.2)'
     canvasContext.stroke();
 }
 
-    function toDegrees(radians){
-        return radians * (180/Math.PI);
-    }
+function toDegrees(radians){
+    return radians * (180/Math.PI);
+}
 
-    function toRadians(degrees){
-        return degrees * (Math.PI/180);
-    }
+function toRadians(degrees){
+    return degrees * (Math.PI/180);
+}
 
 function randomNumberBetween(min, max){
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-  function randomColor() {
+function randomColor() {
     var o = Math.round, r = Math.random, s = 255;
     return 'rgb(' + o(r()*s) + ',' + o(r()*s) + ',' + o(r()*s)  + ')';
- }
+}
 
 
-  // takes a cubic path as per http://snapsvg.io/docs/#Snap.path.toCubic
-  // renders the path to HTML5 Canvas
-  function renderPath(cubic){
-    var c = document.getElementById("canvas");
-    c.style.width = "300px";
-    var ctx = c.getContext("2d");
-    ctx.lineWidth = 15;
-    ctx.beginPath();
-    // loop through all the segments. 
-    for(var i = 0; i < cubic.length; i++){
-        var seg = cubic[i]; 
-        
-        //console.log(seg);
-        seg = seg.map(i =>{ return (isNaN(i) && i!="M" && i!="C") ? 0 : i});  
-
-      //  console.log(seg);
-
-        if (i != 0){ 
-            var prev = cubic[i-1];
-            var prev = prev.map(i =>{ return (isNaN(i) && i!="M" && i!="C") ? 0 : i});  
-        }
-        // sometimes the values are NaN instead of zero so lets fix it.
-        
-        if (seg[0] == "M"){
-            var x = seg[1] || 0;
-            var y = seg[2] || 0;
-
-            ctx.moveTo(x, y);
-        } 
-        else if(seg[0] == "C"){
-            //ctx.quadraticCurveTo(20, 100, 200, 20);  
-            // See also: https://www.w3schools.com/tags/canvas_beziercurveto.asp
-
-            var p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y, t;
-            if (prev.length == 3){
-                p1x = prev[1];
-                p1y = prev[2];
-            }
-            else if(prev.length == 7){
-                p1x = prev[5];
-                p1y = prev[6];
-            }
-            c1x = seg[1];
-            c1y = seg[2];
-            c2x = seg[3];
-            c2y = seg[4];
-            p2x = seg[5];
-            p2y = seg[6];
-            t = 0.5;
 
 
-            var midPointOfSegment = Snap.path.findDotsAtSegment(p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y, t)
-            //console.log(midPointOfSegment);
-            
-            //console.log( ctx.bezierCurveTo(seg[1], seg[2], seg[3], seg[4], seg[5], seg[6]) ) ;
-        }
-
-        //console.log(seg);
-        // the first point is usually a regular "Move"
-        
-        // C stands for Cubic?
-        
-    }
-    ctx.stroke();
-
-  }
-
-
-  function saveCanvasImage(){
+function saveCanvasImage(){
     var myCanvas = document.getElementById('canvas');
     var link = document.getElementById('imageLink');
-    link.setAttribute('download', 'MintyPaper.png');
+    link.setAttribute('download', 'result.png');
     link.setAttribute('href', myCanvas.toDataURL("image/png").replace("image/png", "image/octet-stream"));
     link.click();
-  }
+}
+
+  // Calculate the midpoint between two points
+function findMidpoint(x1, y1, x2, y2) { 
+    return {
+        x: ((x1 + x2) / 2), 
+        y: ((y1 + y2) / 2)
+    };
+}
 
 
-// Calculatedist the distance between two points
+// Calculate the distance between two points
 function findDistance(x1, y1, x2, y2) { 
 	let xDiff = x1 - x2; 
 	let yDiff= y1 - y2; 
