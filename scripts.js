@@ -303,21 +303,28 @@ function findPath(svgElement){
    // -begins at startLocation (A) 
    // -passes through startLocation +0.5i (B)
    // -ends at startLocation + 1i (C)
-  function findSegment(path, pathLength, startLocation, increment, splitMode = false){
+  function findSegment(path, pathLength, startLocation, increment, split = false, level = 1){
         
         if ((startLocation + increment) > 100) return false;
-        if (splitMode != false){
-            console.log(
-                'Splitting: '+splitMode+
-                'increment is now '+increment+' instead of '+(2*increment)
-            );            
-        }
+        
         // Find points A, B, and C as percentages of the whole path length
         let positionA = ( startLocation ) / 100 ;
         let positionB = ( startLocation + (increment/2) ) / 100;
         let positionC = ( startLocation + increment ) / 100;
 
-        console.log("FIND SEGMENT at Position "+positionA.toFixed(3)+" =================== ");
+        
+
+        if (split == false){
+            console.log("FIND SEGMENT from "+positionA.toFixed(3)+" to "+positionC.toFixed(3)+" =================== ");
+        }
+        else{
+            console.log(
+                '--- LEVEL '+level+' SPLIT ('+split+' of 2) -------- '+
+                'This segment has been split from a larger one. '+
+                'It Starts at '+ startLocation.toFixed(3) +'. '+
+                'Increment is '+increment.toFixed(3)+' instead of '+(2*increment).toFixed(3)
+            );            
+        }
 
         // Find points A, B, and C as pixel position along the path 
         let pixelPositionA = pathLength * positionA;
@@ -354,22 +361,21 @@ function findPath(svgElement){
 
         // LINEAR Segments
         // A linear segment has 180 degrees or (π radians)
-        // If the angle is less a quarter of a degree away from "straight"
+        // If the angle is less an eighth of a degree away from "straight"
         // we will consider it straight. 
-        // NOTE: 0.25 degrees equals π/720 radians
-        if ( ( Math.PI  - angleABC ) <  (Math.PI / 720) ){
+        // NOTE: 0.125 degrees equals π/720 radians
+        if ( ( Math.PI  - angleABC ) <  (Math.PI / 1440) ){
             console.log(
-                "Angle" + toDegrees(angleABC) + " is treated as linear "+
-                "by proximity to 180 degree.");
-            let segment = {
+                "LINE FOUND --------- Angle" + toDegrees(angleABC) + " is treated as linear "+
+                "by proximity to 180 degrees.");
+            let theLine = {
                 type: 'line',
-                start:A,
-                end:C,
+                level: level,
                 A: A,
                 B: B,
                 C: C
             }
-            return [segment];
+            return [theLine];
         }
 
         // SHARP CORNERS (Acute Angles)
@@ -385,12 +391,15 @@ function findPath(svgElement){
         if (angleABC < thresholdAngle ){
 
             console.log(
-                "Angle "+toDegrees(angleABC).toFixed(2) +" is too sharp "+
+                "SHARP ANGLE ------ Angle "+toDegrees(angleABC).toFixed(2) +" is too sharp "+
                 "(less than "+toDegrees(thresholdAngle).toFixed(2)+" degrees). "+
                 "Segment will be split in two");
+            renderAngle(A,B,C);
             halfIncrement = increment/2;
-            firstHalf = findSegment(path, pathLength, startLocation, halfIncrement, "first of two")
-            secondHalf = findSegment(path, pathLength, startLocation+halfIncrement, halfIncrement, "second of two.")
+            let nextLevel  = level + 1;
+            console.log('Incrementing level '+ level+' to '+nextLevel);
+            firstHalf = findSegment(path, pathLength, startLocation, halfIncrement, 1, nextLevel)
+            secondHalf = findSegment(path, pathLength, startLocation+halfIncrement, halfIncrement, 2, nextLevel )
             return [firstHalf, secondHalf];
         }
 
@@ -432,7 +441,7 @@ function findPath(svgElement){
             type: "arc",
             chord: arcChord,
             angle: arcAngle,
-            
+            level: level,
             rotateAngle: 0, /* Still need to calculate this. */
             endAngle: 0,  /* Still need to calculate this. */
             slopeAB:slopeAB,
@@ -444,104 +453,20 @@ function findPath(svgElement){
             C: C,
             circle: theCircle,
             isClockwise: arcIsClockwise,
-            isCounterClockwise: !arcIsClockwise,
-            direction: (arcIsClockwise) ? "Clockwise" : "CounterClockwise"
+            flowDirection: (arcIsClockwise) ? "Clockwise" : "CounterClockwise"
             
-        }
-
-        
+        } 
 
         // We should know enough abour the arc now to position it.
         // relative to its circle. 
         theArc.rotateAngle = findArcStartAngle(theArc);
         theArc.endAngle = theArc.rotateAngle + theArc.angle
 
-
-       
-         
-
-        // let fallBack = false;
-
-        // if (slopeIsNegative){
-        //     console.log("slopeIsNegative");
-        //     if(cBelowAB){
-        //         console.log("cBelowAB")
-        //         if (aBelowB){
-        //             console.log("aBelowB")
-        //             referencePoint = A
-        //         }
-        //         if (aAboveB){
-        //             console.log("aAboveB")
-        //             referencePoint = A
-        //             // observed arc too far. 
-        //             // try fallback. 
-        //             fallBack = true;
-        //         }
-        //     }
-        //     if(cAboveAB){
-        //         console.log("cAboveAB");
-        //         if (aBelowB){
-        //             console.log("aBelowB")
-        //             referencePoint = A
-        //         }
-        //         if (aAboveB){
-        //             console.log("aAboveB")
-        //             referencePoint = A
-        //         }
-        //     }
-        // }
-        // if (slopeIsPositive){
-        //     console.log("slopeIsPositive");
-        //     if(cBelowAB){
-        //         console.log("cBelowAB")
-        //         if (aBelowB){
-        //             console.log("aBelowB")
-        //             // observed arc rotated too far. 
-        //             // 
-        //             // try subtracting  the arc's own angle from the rotate angle. 
-        //             fallBack = true;
-        //             referencePoint = A
-
-        //         }
-        //         if (aAboveB){
-        //             console.log("aAboveB")
-        //             referencePoint = A
-        //         }
-        //     }
-        //     if(cAboveAB){
-        //         console.log("cAboveAB");
-        //         if (aBelowB){
-        //             console.log("aBelowB")
-        //             referencePoint = A
-        //         }
-        //         if (aAboveB){
-        //             console.log("aAboveB")
-        //             referencePoint = C
-        //         }
-        //     }
-        // }
-   
-        
-        // NOTE: the origin (0,0) of an SVG is at the top left 
-        // The y value increases as you move down. 
          
         // TODO you might need to calculate the top_radius and the bottom_radius as well
         // otherwise imagemagick will default to its own opinions on the matter.
         // you would need to know the vertical dimensions of the input image. 
-/*
-        let segment = {
-            type: "arc",
-            arcAngle: arcAngle, 
-            rotateAngle: rotateAngle,
-            endAngle: arcAngle + rotateAngle,
-            targetArcLength: targetArcLength,
-            arcLength: arcLength,
-            A: A,
-            B: B,
-            C: C,
-            circle: theCircle
-        }*/
-        //console.log( segment );
+ 
         // return an array because sometimes there's more than one arc.
         // e.g. when we work recursively. 
         // here it just happens to be an array of one.
@@ -550,23 +475,10 @@ function findPath(svgElement){
   }
  
 
-// given an arc with lots detail. 
-// work out the angle needed to position it upon its own circle. 
+// given an arc with lots detail (e.g. awareness of quardrants and flow direction)
+// work out the rotation angle needed to position it properly within its circle. 
 function findArcStartAngle(theArc){
  
-    
-        // let slopeIsNegative = (slopeAB < 0);
-        // let slopeIsPositive = !slopeIsNegative;
-
-        // let cBelowAB = (C.y < (slopeAB * C.x + yInterceptAB))
-        // let cAboveAB = !cBelowAB
-
-        // let aBelowB =  (A.y < B.y) 
-        // let aAboveB = !aBelowB
-
-        //let majorArcAngle = (2*Math.PI) - arcAngle;
-        
-
         // Find the angles of the major and minor arcs whose endpoints are 
         // point A and the point at the top of the circle.
         // This angle corresponds to the amount of rotation applied to the arc of interest
@@ -578,7 +490,7 @@ function findArcStartAngle(theArc){
         // we rotate the arc so as to begin at C.x, C.y
 
         // the reference point will either be A or C.
-        let referencePoint = theArc.A;
+        let referencePoint
         let circleCenter = {x:theArc.circle.x, y:theArc.circle.y}
         let circleRight = {x:theArc.circle.xRight, y:theArc.circle.yRight}
         let foundAngle 
@@ -609,41 +521,6 @@ function findArcStartAngle(theArc){
 
         return rotateAngle;
         
-        
- 
-        
-
-        // if (fallBack){
-        //     console.log( 
-        //         'Performing fallback. '+
-        //         ' rotateAngle '+toDegrees(rotateAngle).toFixed(2) +
-        //         ' minus arcAngle '+ toDegrees(arcAngle).toFixed(2) + 
-        //         ' is '+toDegrees(rotateAngle - arcAngle).toFixed(2)
-
-        //     )
-        //     rotateAngle -= arcAngle;
-
-        // }else{
-       
-        //     if (referencePoint.y < theCircle.y){
-        //         rotateAngle =  (2 * Math.PI) - rotateAngle
-        //         console.log(
-        //             "Arc starting is above the circle center " +
-        //             "(referencePoint.y "+referencePoint.y.toFixed(2)+" is less than circle.y "+theCircle.y.toFixed(2)+") "+
-        //             "∴ we will use the major angle "+toDegrees(rotateAngle).toFixed(2)+" degrees ("+rotateAngle.toFixed(2)+" radians) "+
-        //             "instead of the minor angle. ");
-    
-        //     }
-
-        // }
-
-        // console.log(
-        //     "Minor rotate angle found for arc. "+
-        //     "Start of arc is: "+rotateAngle+" radians "+
-        //     "or "+toDegrees(rotateAngle)+" degrees "+
-        //     "from a point on the right edge of the Circle." )
-
-
          
 }
 
@@ -776,22 +653,22 @@ function renderSegment(segment, level = 0){
 
     console.log(" RENDER SEGMENT =============");
     if (segment.type =="line") renderLine(segment)  
-        // I assume that a line would never happen at level > 0 
-        // however an the case of an arc we pass the level along to differentiate.
-        if (segment.type =="arc") renderArc(segment, level) 
-        /*
-    if (Array.isArray(segment) ){
-        console.log(" segment is an array.")
-        console.log(segment);
 
-        for (subSegment of segment){
-            renderSegment(subSegment, level++);
-        }
-    }
-    else{
+    // I assume that a line would never happen at level > 0 
+    // however an the case of an arc we pass the level along to differentiate.
+    if (segment.type =="arc") renderArc(segment, level) 
         
-    }*/
 }
+
+    function renderAngle(A,B,C){
+        // draw a line.
+        canvasContext.beginPath();
+        canvasContext.moveTo(A.x,A.y);
+        canvasContext.lineTo(B.x, B.y);
+        canvasContext.lineTo(C.x, C.y);
+        canvasContext.fillStyle = '#000000';
+        canvasContext.fill();
+    }
 
   function renderLine(line){
 
@@ -799,18 +676,18 @@ function renderSegment(segment, level = 0){
 
     // draw a line.
     canvasContext.beginPath();
-    canvasContext.moveTo(line.start.x,line.start.y);
-    canvasContext.lineTo(line.end.x, line.end.y);
+    canvasContext.moveTo(line.A.x,line.A.y);
+    canvasContext.lineTo(line.C.x, line.C.y);
     canvasContext.lineWidth = 50;
     let r = line.A.position * 255;
     let g = 255 - line.A.position * 255;
     let b = randomNumberBetween(1,100)
-    canvasContext.strokeStyle = 'rgb('+r+','+g+','+b+', 0.9)';
+    canvasContext.strokeStyle = 'rgba('+r+','+g+','+b+', 0.5)';
     canvasContext.stroke();
 
      // render a dot for context.
      canvasContext.beginPath();
-     canvasContext.arc(line.start.x,line.start.y, 2, 0, 2 * Math.PI);
+     canvasContext.arc(line.A.x,line.A.y, 2, 0, 2 * Math.PI);
      canvasContext.lineWidth = 2;
      canvasContext.strokeStyle = 'rgb(0,0,0)'
      canvasContext.stroke();
@@ -859,7 +736,7 @@ function renderSegment(segment, level = 0){
     let r = position * 255
     let g = 255 - position * 255
     let b = randomNumberBetween(100,200)
-    return 'rgba('+r+','+g+','+b+', 0.8)'
+    return 'rgba('+r+','+g+','+b+', 0.5)'
   }
 
 
@@ -877,13 +754,13 @@ function renderCircle(circle, level){
     canvasContext.arc(circle.x, circle.y, circle.radius, 0, 2 * Math.PI);
     canvasContext.lineWidth = 2;
     if (level == 1){
-        canvasContext.strokeStyle = 'rgb(255,255,0, 1)'
+        canvasContext.strokeStyle = 'rgba(255,255,0, 1)'
     }
     else if (level > 1){
-        canvasContext.strokeStyle = 'rgb(255,150,0, 1)'
+        canvasContext.strokeStyle = 'rgba(255,150,0, 1)'
     }
     else{
-        canvasContext.strokeStyle = 'rgb(100,100,100, 0.5)'
+        canvasContext.strokeStyle = 'rgba(100,100,100, 0.5)'
     }
     canvasContext.stroke();
 }
@@ -1066,12 +943,20 @@ function findCircle(x1, y1, x2, y2, x3, y3)
 
 document.querySelectorAll('#configArea input').forEach(el => {
     el.addEventListener('change', (event) => {
-        
         let theValue = parseInt(event.target.value);
-        config[event.target.id] = theValue;
-        event.target.nextElementSibling.value = theValue
+        let theSlider 
+
+        if (event.target.classList.contains('rangeValue')){
+            theSlider = event.target.previousElementSibling
+            theSlider.value = theValue
+        }else{
+            theSlider = event.target
+            event.target.nextElementSibling.value = theValue
+        }
+        config[theSlider.id] = theValue;
         console.log(config)
-        go();
+        if (uploadedSVG != '') go();
+        
     });
 });
  
