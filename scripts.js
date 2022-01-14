@@ -18,8 +18,8 @@ let canvasContext = outputCanvas.getContext("2d");
 let uploadedSVG = '';
 
 let config = {
-    simplifyIncrement: 250,
-    segmentIncrement: 10,
+    simplifyIncrement: 10,
+    segmentIncrement: 100,
     roundedCornerRadius:10,
     sharpAngleThreshold: 90
 }
@@ -64,19 +64,90 @@ dragAndDrop.ondrop = function(e) {
     let file = e.dataTransfer.files[0]
     let reader = new FileReader()
     //console.log('ok');
-    reader.onload = function(event) {
-
+    reader.onload = function(event) { 
         uploadedSVG = event.target.result;
-        go();
-
-
+        go(); 
     };
     reader.readAsText(file);
     return false;
 };
 
+async function convertPolysToPaths(svgElement){
 
-function go(){
+    let styleTag = svgElement.querySelector('style');
+    styleTag.remove();
+
+    // If there is a polyline instead of a path.
+    // Convert it to a path by recontextualizing the points string.
+    let polylines = svgElement.querySelectorAll('polyline');
+    if (polylines !== null) {
+        for (polyline of polylines){
+            console.log('Found polyline.') 
+            // https://www.w3.org/TR/SVG/paths.html#PathDataMovetoCommands
+            // If a moveto is followed by multiple pairs of coordinates, 
+            // the subsequent pairs are treated as implicit lineto commands.
+             
+            let thePath = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+            thePath.setAttribute('d', 'M'+polyline.getAttribute('points'));
+            //svgElement.appendChild( thePath )             
+            polyline.parentElement.appendChild( thePath )
+            polyline.remove();
+        }
+    } 
+    // If there is a polygon instead of a path.
+    // Convert it to a path by recontextualizing the points string.
+    let polygons = svgElement.querySelectorAll('polygon');
+    if (polygons !== null) {
+        for (polygon of polygons){
+            console.log('Found polygon.') 
+            // https://www.w3.org/TR/SVG/paths.html#PathDataClosePathCommand
+            // The "closepath" (Z or z) ends the current subpath 
+            // by connecting it back to its initial point. 
+            // TODO: check: do we need to trim any trailing space(s) from polygonString? 
+            // TODO: why should we bother with Z? any artistic considerations here?
+            let thePath = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+            thePath.setAttribute('d', 'M'+polygon.getAttribute('points')+'z');
+            //svgElement.appendChild( thePath )
+            polygon.parentElement.appendChild( thePath )
+            polygon.remove()
+        }
+    } 
+    
+    // If there is a rectangle instead of a path.
+    // Convert it to a path by recontextualizing the points string.
+    let rectangles = svgElement.querySelectorAll('rect');
+    if (rectangles !== null) {
+        for (rect of rectangles){
+            console.log('Found rectangle.')      
+            // get rectangle coordinates
+            let rx = parseFloat(rect.getAttribute('x'));
+            let ry = parseFloat(rect.getAttribute('y'));
+            // assume 0,0 if rectangle lacks coordinates.
+            if ( isNaN(rx) ) rx = 0; 
+            if ( isNaN(ry) ) ry = 0;
+            // get rectangle dimensions
+            let rw = parseFloat(rect.getAttribute('width'));
+            let rh = parseFloat(rect.getAttribute('height'));
+            // express rectangle as a series of points
+            let points = [
+                [rx, ry].join(','),
+                [rx+rw, ry].join(','),
+                [rx+rw, ry+rh].join(','),
+                [rx, ry+rh].join(',')
+            ].join(' ');             
+            // create a path element from the given points
+            let thePath = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+            thePath.setAttribute('d', 'M'+points+'z');
+            rect.parentElement.appendChild( thePath )
+            rect.remove()
+        }
+    }    
+    
+}
+
+
+
+async function go(){
     
     svgContainer.style.display = "block";
 
@@ -120,87 +191,53 @@ function go(){
     // there might also be a "polyline" in which case we should convert it to a path.
         
     
-    let path = findPath( svgElement ); 
+    await convertPolysToPaths(svgElement)
 
-    // TODO: create a UI checkbox option to toggle 
-    // whether the path will be simplified 
+    console.log(svgElement);
 
-
-    // if we arrived here we should have a suitable path. 
-    // simplify the path by describing it as a set of coordinates
-    // we can use the simplified path to construct a "rounded corners" variation.
-    let pathAsCoordinates = simplifyPath(path);
-
+    let paths = svgElement.querySelectorAll('path');
     
-    // TODO: create a UI checkbox option to toggle 
-    // whether the corners will be rounded
+    if (paths != null){
+        for (path of paths){
+                    
+            // TODO: create a UI checkbox option to toggle 
+            // whether the path will be simplified 
 
-    let roundedPathString = createRoundedPathString(pathAsCoordinates, config.roundedCornerRadius);    
-    
-    
-    // TODO: Simplify a path with Ramer–Douglas–Peucker algorithm
-    // https://en.wikipedia.org/wiki/Ramer%E2%80%93Douglas%E2%80%93Peucker_algorithm
-
-    svgElement.querySelector('path').setAttribute('d', roundedPathString);
-        
-    let roundedPath = svgElement.querySelector('path');
-
-    let segments = pathToSegmentsArray( roundedPath ) ;
-
-    
-    console.log('SEGMENTS +++++++++++++++++++++++++++');
-    console.log(segments);
+            // if we arrived here we should have a suitable path. 
+            // simplify the path by describing it as a set of coordinates
+            // we can use the simplified path to construct a "rounded corners" variation.
 
 
-    // traverse the rounded path into arc and line segments. 
-    for ( segment of segments ){
-        renderSegment(segment)
-    }
-}
+            let pathAsCoordinates = simplifyPath(path);
 
+            // TODO: create a UI checkbox option to toggle 
+            // whether the corners will be rounded
 
-function findPath(svgElement){
- 
-    // The simple case is when a path element already exists
-    //let path = Snap(svgElement).select('path');
-    let path = svgElement.querySelector('path');
-    //console.log(path);
-    if (path !== null) return path;
-    
-    // If there is a polyline instead of a path.
-    // Convert it to a path by recontextualizing the points string.
-    let polyline = svgElement.querySelector('polyline');
-    if (polyline !== null) {
-        console.log('Found polyline.') 
-        // https://www.w3.org/TR/SVG/paths.html#PathDataMovetoCommands
-        // If a moveto is followed by multiple pairs of coordinates, 
-        // the subsequent pairs are treated as implicit lineto commands.
-        svgElement.innerHTML = 
-            '<path d="M'+ polyline.getAttribute('points') +'">';
-        //return Snap(svgElement).select('path');
-        return svgElement.querySelector('path');
-    }
-    
-    // If there is a polygon instead of a path.
-    // Convert it to a path by recontextualizing the points string.
-    let polygon = svgElement.querySelector('polygon');
-    if (polygon !== null)    {
-        console.log('Found polygon.') 
-        // https://www.w3.org/TR/SVG/paths.html#PathDataClosePathCommand
-        // The "closepath" (Z or z) ends the current subpath 
-        // by connecting it back to its initial point. 
-        // TODO: check: do we need to trim any trailing space(s) from polygonString? 
-        // TODO: is the Z really a good idea? what does it mean?
-         
-        svgElement.innerHTML = 
-            '<path d="M'+ polygon.getAttribute('points')+'z">'
+            let roundedPathString = createRoundedPathString(pathAsCoordinates, config.roundedCornerRadius);    
             
-        //return Snap(svgElement).select('path');
-        return svgElement.querySelector('path');
+            // TODO: Could you perhaps Simplify a path with Ramer–Douglas–Peucker algorithm?
+            // https://en.wikipedia.org/wiki/Ramer%E2%80%93Douglas%E2%80%93Peucker_algorithm
+
+            path.setAttribute('d', roundedPathString);
+                
+            let segments = pathToSegmentsArray( path ) ;
+
+            
+            console.log('SEGMENTS +++++++++++++++++++++++++++');
+            console.log(segments);
+
+
+            // traverse the rounded path into arc and line segments. 
+            for ( segment of segments ){
+                renderSegment(segment)
+            }
+
+        }
     }
- 
     
+
 }
+ 
 
 
 
@@ -211,8 +248,10 @@ function findPath(svgElement){
         // http://snapsvg.io/docs/#Element.getTotalLength
         // Get the total length of the path in pixels 
         console.log('ok');
-        // TODO: actually you probably dont even need snap to do this. 
-        // it is a native feature of the SVG API
+        
+        console.log(path);
+
+        // TODO: getTotalLength is a feature of the SVG API
         // https://developer.mozilla.org/en-US/docs/Web/API/SVGGeometryElement/getTotalLength
         //console.log(path);
         let pathLength = path.getTotalLength(); 
@@ -328,6 +367,8 @@ function findPath(svgElement){
                 if ( theAngle < toRadians(config.sharpAngleThreshold) ) {
                     console.log("SHARP ANGLE PERSISTS. ")
                     console.log(theAngle+" is problematic, it is less than than "+ toRadians(config.sharpAngleThreshold));
+                    console.log({x:first.C.x, y:first.C.y, radius:150});
+                    renderCircle({x:first.C.x, y:first.C.y, radius:150}, 'rgb(255,0,0)')
                     
                 } 
                 else{
@@ -944,12 +985,12 @@ function renderDot(point, color='rgb(0,0,0)', radius= 2){
     canvasContext.fill();
 }
 
-function renderCircle(circle, level){
+function renderCircle(circle, color='rgba(100,100,100, 0.2)'){
     // render a circle for context. 
     canvasContext.beginPath();
     canvasContext.arc(circle.x, circle.y, circle.radius, 0, 2 * Math.PI);
     canvasContext.lineWidth = 2;
-    canvasContext.strokeStyle = 'rgba(100,100,100, 0.2)'
+    canvasContext.strokeStyle = color
     canvasContext.stroke();
 }
 
