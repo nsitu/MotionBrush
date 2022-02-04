@@ -1,0 +1,156 @@
+body{
+  font-family: arial, helvetica, sans-serif;
+  text-align: center;
+}
+
+svg path {
+  fill:none;
+  stroke:#000000;
+  stroke-width: 10px;
+  stroke-miterlimit:10;
+}
+ 
+
+#dragAndDrop.hover { 
+  border: 10px dashed #333; 
+}
+
+#dragAndDrop {   
+  box-sizing: border-box;
+  border: 10px dashed #ccc; 
+  height: 100%;
+  color: #aaa; 
+  display: flex;
+  align-items: center;
+}
+#dragAndDrop p{
+  margin: 20px;
+}
+
+
+
+
+
+/* this only controls the apparent scaling 
+ and does not affect the size of the drawing context.*/
+#outputCanvas{
+ width: 100%;
+}
+
+#svgContainer{
+  width: 25%;
+  box-sizing: border-box;
+  border: 10px solid #999; 
+  height: 100%;
+
+  margin: 0 10px 0 0;
+  align-self: center;
+  display: none;
+}
+
+
+#userInterface{
+  display: flex;
+  flex-direction:row; 
+  margin: 0 auto;
+  justify-content: center;
+}
+
+#uploadArea{
+  margin-right: 15px;
+}
+ 
+form{
+  height: 20rem;
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto; 
+  overflow-y: scroll;
+  background-color: #ccc;
+}
+form div{
+  display: flex; 
+  padding: 20px;
+  background: #efefef;
+  margin-top: 2px;
+  align-items: center;
+}
+form label{
+  font-size: 0.8em;
+  text-align: left;
+  font-weight: 900;
+  width: 60%;
+}
+form label span{ 
+  font-weight: 400;
+  font-style: italic;
+}
+form input{
+  padding: 5px 10px;
+  margin-left: auto;
+}
+
+
+form input.rangeSlider{
+  flex-basis: 300px;
+  flex-grow:0;
+}
+form input.rangeValue{
+  width: 50px;
+  border: grey;
+  text-align: center;
+  margin-left: 5px;
+  border-radius: 5px;
+}
+
+
+#status{ 
+  text-align: center;
+  padding: 30px;
+}
+ .processed{
+   border: 5px solid #ccc;
+ }
+
+ .finished{
+   color: green;
+ }
+
+ .loading{
+   background-image: url(loading.gif);
+   background-repeat: no-repeat;
+   background-position: center left;
+   padding: 0 0 0 30px;
+ }
+
+#copyTextButton{
+  border: 1px solid #666;
+    padding: 10px 20px;
+    margin: 0 10px;
+    color: #666;
+    cursor: pointer;
+
+}
+
+#banner{
+  display:flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+#banner h3{
+  margin-right: 30px;
+}
+
+footer p{
+  font-size: 0.8em;
+  color: #666;
+  
+  width: 60%;
+  margin: 30px auto ;
+}
+
+
+footer a{
+  color: #ff6600;
+}
