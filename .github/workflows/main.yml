@@ -13,8 +13,9 @@ jobs:
         with:
           command: c    # "c" means "create" (new tarball)
           cwd: "./"
+            files: |
+            /
 # By default we will tar the entire repo, but you can specifiy a list of files here if you want to.
-#          files: |
 #            webserver/
 #            backend/
 #            frontend/dist/
