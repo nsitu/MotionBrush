@@ -1,0 +1,29 @@
+name: Deploy to Caprover
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest 
+
+    steps:
+      - uses: actions/checkout@v3 
+      - uses: a7ul/tar-action@v1.1.0
+        with:
+          command: c    # "c" means "create" (new tarball)
+          cwd: "./"
+# By default we will tar the entire repo, but you can specifiy a list of files here if you want to.
+#          files: |
+#            webserver/
+#            backend/
+#            frontend/dist/
+#            captain-definition
+          outPath: deploy.tar
+  
+      - name: Deploy App to Caprover
+        uses: caprover/deploy-from-github@v1.1.2
+        with:
+          server: '${{ secrets.SERVER }}'
+          app: '${{ secrets.APP }}'
+          token: '${{ secrets.TOKEN }}'
