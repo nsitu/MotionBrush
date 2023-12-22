@@ -13,15 +13,9 @@ jobs:
         with:
           command: c    # "c" means "create" (new tarball)
           cwd: "./"
-            files: |
-            /
-# By default we will tar the entire repo, but you can specifiy a list of files here if you want to.
-#            webserver/
-#            backend/
-#            frontend/dist/
-#            captain-definition
+          files: |
+            ./
           outPath: deploy.tar
-  
       - name: Deploy App to Caprover
         uses: caprover/deploy-from-github@v1.1.2
         with:
