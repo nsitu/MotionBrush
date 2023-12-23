@@ -42,12 +42,14 @@ svg path {
   box-sizing: border-box;
   border: 10px solid #999; 
   height: 100%;
-
   margin: 0 10px 0 0;
   align-self: center;
   display: none;
 }
-
+#svgContainer svg{
+  width: 100%;
+  height:auto;
+}
 
 #userInterface{
   display: flex;
